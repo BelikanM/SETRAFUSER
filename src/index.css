@@ -1,0 +1,46 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+/* src/index.css */
+:root {
+  --whatsapp-light: #F0F2F5;
+  --whatsapp-dark: #111B21;
+  --whatsapp-green: #00A884;
+  --whatsapp-dark-green: #008069;
+}
+
+body {
+  background-color: var(--whatsapp-light);
+  transition: background-color 0.3s ease;
+}
+
+body.dark {
+  background-color: var(--whatsapp-dark);
+  color: #ffffff;
+}
+
+.nav-link.active {
+  color: var(--whatsapp-green) !important;
+}
+
+.nav-link {
+  color: #6c757d !important;
+}
+
+.nav-link:hover {
+  color: var(--whatsapp-green) !important;
+}
+
+.circular-nav {
+  background: linear-gradient(to right, #f87171, #facc15, #22c55e);
+}
