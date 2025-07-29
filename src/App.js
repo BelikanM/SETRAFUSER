@@ -7,6 +7,10 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import People from "./pages/People";
 import Data from "./pages/Data";
+import Engins from "./pages/Engins";
+import GPS from "./pages/GPS";
+import News from "./pages/News";
+import Followers from "./pages/Followers";
 
 function App() {
   return (
@@ -18,6 +22,10 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/people" element={<People />} />
             <Route path="/data" element={<Data />} />
+            <Route path="/engins" element={<Engins />} />
+            <Route path="/gps" element={<GPS />} />
+            <Route path="/news" element={<News />} />
+            <Route path="/followers" element={<Followers />} />
           </Routes>
           <FooterNav />
         </div>
