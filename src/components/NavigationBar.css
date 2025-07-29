@@ -1,0 +1,105 @@
+.nav-container {
+  display: flex;
+  justify-content: center;
+  background: #f5f6f5;
+  padding: 10px 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  z-index: 1000;
+  overflow-x: auto;
+}
+
+.nav-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  width: 100%;
+  position: relative;
+}
+
+.nav-section {
+  display: flex;
+  flex: 1;
+  justify-content: flex-start;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.nav-section.active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.nav-section.hidden {
+  opacity: 0;
+  transform: translateX(100%);
+  position: absolute;
+  pointer-events: none;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 15px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.nav-item svg {
+  margin-bottom: 5px;
+  font-size: 24px;
+}
+
+.nav-item.active {
+  color: #25D366; /* Couleur verte WhatsApp */
+  background: rgba(37, 211, 102, 0.1);
+  border-radius: 10px;
+}
+
+.nav-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.toggle-button {
+  background: #25D366;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: transform 0.3s;
+  z-index: 10;
+}
+
+.toggle-button:hover {
+  transform: translateX(-50%) scale(1.1);
+}
+
+@media (max-width: 768px) {
+  .nav-item {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .nav-item svg {
+    font-size: 20px;
+  }
+
+  .toggle-button {
+    width: 35px;
+    height: 35px;
+  }
+}
