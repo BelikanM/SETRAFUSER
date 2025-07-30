@@ -1,0 +1,31 @@
+.whatsapp-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #ece5dd;
+}
+
+.form-paper {
+  padding: 20px;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.error {
+  color: #ff4444;
+  margin-bottom: 10px;
+}
+
+.success {
+  color: #25d366;
+  margin-bottom: 10px;
+}
+
+h2 {
+  color: #333;
+}
