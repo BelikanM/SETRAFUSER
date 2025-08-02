@@ -1,3 +1,138 @@
+/* Styles pour les emails (bleu) */
+.dashboard-table td:nth-child(2) {
+  color: blue;
+}
+
+/* Styles pour les activités (bleu) */
+.countdown-box span {
+  color: blue !important;
+}
+
+.widget p {
+  color: blue;
+}
+
+.certificate-card h3 {
+  color: blue;
+}
+
+.certificate-card p {
+  color: blue;
+}
+
+.approvals-section h3 {
+  color: blue;
+}
+
+.widget p svg + span,
+.widget p:has(> svg) {
+  color: blue;
+}
+
+/* Styles pour les noms (vert) et certificats (vert) dans la section de gestion des utilisateurs */
+.users-section .dashboard-table td:nth-child(1) {
+  color: green;
+}
+
+.users-section .dashboard-table td:nth-child(5),
+.users-section .dashboard-table td:nth-child(5) ul li {
+  color: green;
+}
+
+/* Styles pour les rôles dans la section de gestion des utilisateurs */
+.users-section .dashboard-table td:nth-child(3) {
+  color: orange; /* Par défaut, les rôles sont en orange (pour employé) */
+}
+
+/* Style spécifique pour le rôle administrateur en rouge */
+.users-section .dashboard-table td:nth-child(3):where(:contains("admin")) {
+  color: red;
+}
+
+/* Styles pour les rôles dans la section de gestion des utilisateurs */
+.users-section .dashboard-table td.role-employee {
+  color: orange;
+}
+
+.users-section .dashboard-table td.role-admin {
+  color: red;
+}
+
+/* Previous CSS for blue on user emails and activities */
+.dashboard-table td:nth-child(2) {
+  color: blue;
+}
+
+.countdown-box span {
+  color: blue !important;
+}
+
+.widget p {
+  color: blue;
+}
+
+.certificate-card h3 {
+  color: blue;
+}
+
+.certificate-card p {
+  color: blue;
+}
+
+.approvals-section h3 {
+  color: blue;
+}
+
+.widget p svg + span,
+.widget p:has(> svg) {
+  color: blue;
+}
+
+/* New additions for green on names and certificates in user management section */
+.users-section .dashboard-table td:nth-child(1) {
+  color: green;
+}
+
+.users-section .dashboard-table td:nth-child(5),
+.users-section .dashboard-table td:nth-child(5) ul li {
+  color: green;
+}
+
+/* Target email texts in dashboard tables (assuming email is the second column in relevant tables) */
+.dashboard-table td:nth-child(2) {
+  color: blue;
+}
+
+/* Target activity-related texts, such as countdowns in certificates (overriding inline red) */
+.countdown-box span {
+  color: blue !important;
+}
+
+/* Target stats texts in widgets, which may represent activities */
+.widget p {
+  color: blue;
+}
+
+/* Target certificate cards (activities) titles and descriptions */
+.certificate-card h3 {
+  color: blue;
+}
+
+.certificate-card p {
+  color: blue;
+}
+
+/* Target user names and emails in approvals section (activities related to user approvals) */
+.approvals-section h3 {
+  color: blue;
+}
+
+/* Optionally, target any other activity stats with icons like FaClock */
+.widget p svg + span, /* This may not work perfectly, as it's React icons, but targets text after icon */
+.widget p:has(> svg) {
+  color: blue;
+}
+
 /* Variables CSS pour cohérence et maintenance */
 :root {
   --primary-color: #075e54; /* Vert WhatsApp pour la sidebar */
