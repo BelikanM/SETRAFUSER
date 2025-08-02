@@ -1,234 +1,398 @@
-/* src/components/Dashboard.css */
-.dashboard {
-  max-width: 1200px;
-  margin: 0 auto;
+/* Variables CSS pour cohérence et maintenance */
+:root {
+  --primary-color: #075e54; /* Vert WhatsApp pour la sidebar */
+  --secondary-color: #128c7e; /* Vert clair pour hover */
+  --background-color: #f0f2f5; /* Fond gris clair */
+  --paper-bg: #ffffff; /* Fond blanc pour les cartes */
+  --text-color: #333333; /* Texte principal */
+  --accent-color: #25d366; /* Vert WhatsApp pour boutons */
+  --error-color: #e74c3c; /* Rouge pour erreurs */
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Ombre plus prononcée pour profondeur */
+  --border-radius: 12px; /* Bordures plus arrondies pour un look moderne */
+  --transition: all 0.3s ease;
+  --max-width: 1200px; /* Largeur maximale pour centrage */
+}
+
+/* Conteneur principal */
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--background-color);
+  font-family: 'Roboto', sans-serif; /* Typographie moderne */
+  overflow-x: hidden; /* Éviter les débordements horizontaux */
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(to bottom, var(--primary-color), var(--secondary-color)); /* Gradient pour un effet moderne */
+  color: white;
   padding: 20px;
-  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-100%);
+  transition: var(--transition);
+  z-index: 1000;
+  box-shadow: var(--shadow);
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar h3 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: #ffffff;
+  text-align: center; /* Centrage du titre menu */
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  padding: 15px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2); /* Bordure subtile */
+  transition: var(--transition);
+  text-align: center; /* Centrage des items pour un meilleur design */
+}
+
+.sidebar li:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05); /* Effet zoom subtil au hover */
+}
+
+/* Bouton toggle sidebar (mobile) */
+.sidebar-toggle {
+  display: none;
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 1100;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 50%; /* Forme ronde pour modernité */
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: var(--transition);
+  box-shadow: var(--shadow);
+}
+
+.sidebar-toggle:hover {
+  background-color: var(--secondary-color);
+  transform: rotate(90deg); /* Rotation au hover pour dynamisme */
+}
+
+/* Contenu principal */
+.main-content {
+  flex: 1;
+  padding: 40px 20px; /* Plus d'espace vertical pour aération */
+  margin-left: 0;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centrage horizontal des éléments enfants */
+  max-width: var(--max-width);
+  margin: 0 auto; /* Centrage du contenu principal */
+  width: 100%; /* Pleine largeur pour responsive */
+}
+
+.main-content.shifted {
+  margin-left: 280px; /* Décalage quand sidebar ouverte sur desktop */
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #f4f4f4;
-  padding: 10px 20px;
-  border-radius: 8px;
-  flex-wrap: wrap;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.user-info form {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.user-info input {
-  flex: 1;
-  min-width: 150px;
-}
-
-.verification, .dynamic-form, .validity-form, .reminder-form, .message-form {
-  margin: 20px 0;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  box-sizing: border-box;
-}
-
-.verification {
-  background-color: #e8f0fe;
-}
-
-.verification h2 {
-  color: #075E54;
-  margin-bottom: 15px;
-}
-
-.verification input {
-  border: 1px solid #075E54;
-  border-radius: 20px;
-  padding: 10px 15px;
-  margin-right: 10px;
-  flex: 1;
-  min-width: 120px;
-}
-
-.verification button {
-  background-color: #25D366;
-  border-radius: 20px;
-  padding: 10px 20px;
-  color: #fff;
-  transition: background-color 0.3s ease;
-}
-
-.verification button:hover {
-  background-color: #128C7E;
-}
-
-.dynamic-form .field-selector {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.dynamic-form .form-field {
-  margin-bottom: 15px;
-  width: 100%;
-}
-
-.dynamic-form input,
-.dynamic-form select,
-.dynamic-form textarea,
-.message-form input,
-.message-form textarea,
-.validity-form input,
-.reminder-form input {
-  width: 100%;
-  padding: 10px 15px;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  box-sizing: border-box;
-}
-
-.message-form textarea {
-  height: 100px;
-  resize: vertical;
-}
-
-.employee-list {
-  margin-top: 20px;
-}
-
-.employee-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-}
-
-.employee-card {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   text-align: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-bottom: 40px; /* Plus d'espace pour respiration */
+  width: 100%;
 }
 
-.employee-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+.header h1 {
+  font-size: 2.2rem; /* Taille augmentée pour impact */
+  color: var(--text-color);
+  margin-bottom: 10px;
 }
 
-.profile-pic {
-  width: 80px;
-  height: 80px;
+.header p {
+  font-size: 1.1rem;
+  color: #666;
+}
+
+/* Section profil et autres cartes - Centrage et max-width */
+.profile-section,
+.widgets-grid,
+.table-section,
+.certificates-section,
+.employees-section,
+.forms-section {
+  background-color: var(--paper-bg);
+  padding: 20px; /* Padding réduit pour resserrer l'espace interne */
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 40px; /* Espacement accru entre sections */
+  width: 100%;
+  max-width: 800px; /* Limite la largeur pour centrage sur grands écrans */
+  transition: var(--transition);
+  text-align: center; /* Centrage global du texte pour équilibrer gauche/droite */
+}
+
+.profile-section:hover,
+.widget:hover,
+.table-section:hover,
+.certificates-section:hover,
+.employees-section:hover,
+.forms-section:hover {
+  transform: translateY(-8px); /* Effet lift au hover plus prononcé */
+}
+
+/* Avatar container */
+.avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.avatar {
+  width: 140px; /* Taille augmentée pour visibilité */
+  height: 140px;
   border-radius: 50%;
   object-fit: cover;
   margin-bottom: 15px;
-  border: 2px solid #25D366;
+  border: 3px solid var(--accent-color); /* Bordure plus épaisse */
+  box-shadow: var(--shadow);
 }
 
-.employee-info p {
+.avatar-placeholder {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background-color: #e0e0e0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-  font-size: 14px;
-  color: #333;
+  justify-content: center;
+  font-size: 3rem; /* Emoji plus grand */
+  margin-bottom: 15px;
+  box-shadow: var(--shadow);
 }
 
-.info-icon {
-  color: #075E54;
-  width: 20px;
-  height: 20px;
+.file-input {
+  display: none;
 }
 
-button {
-  padding: 10px 20px;
-  background-color: #25D366;
+.upload-button {
+  background-color: var(--accent-color);
   color: white;
-  border: none;
-  border-radius: 20px;
+  padding: 12px 24px;
+  border-radius: var(--border-radius);
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: var(--transition);
+  font-weight: 500; /* Texte plus bold */
 }
 
-button:hover {
-  background-color: #128C7E;
+.upload-button:hover {
+  background-color: var(--secondary-color);
+  transform: scale(1.05); /* Zoom au hover */
 }
 
+/* Grille des widgets - Centrage */
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Colonnes plus larges pour équilibre */
+  gap: 25px;
+  margin-bottom: 40px;
+  width: 100%;
+  justify-content: center; /* Centrage des widgets dans la grille */
+  align-items: center; /* Alignement vertical pour équilibre */
+}
+
+.widget {
+  background-color: var(--paper-bg);
+  padding: 20px; /* Padding réduit pour resserrer */
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+  text-align: center; /* Centrage du texte dans les widgets pour éviter espace à droite */
+  max-width: 90%; /* Limite la largeur interne pour centrage sur mobile */
+  margin: 0 auto; /* Centrage individuel des widgets */
+}
+
+.widget h3 {
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+  color: var(--text-color);
+}
+
+.widget p {
+  font-size: 1.1rem;
+  color: #666;
+  margin: 5px 0; /* Espacement réduit entre paragraphes pour compacter */
+}
+
+/* Section tableau */
+.table-section h3,
+.certificates-section h3,
+.employees-section h2,
+.forms-section h2 {
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+  color: var(--text-color);
+  text-align: center; /* Centrage des titres */
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px; /* Espacement entre lignes pour modernité */
+  margin-bottom: 25px;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  border: none; /* Suppression des bordures pour un look clean */
+  padding: 15px;
+  text-align: center; /* Centrage du texte dans le tableau pour équilibre gauche/droite */
+  font-size: 0.95rem;
+  background-color: #f9f9f9; /* Fond clair pour lignes */
+  border-radius: var(--border-radius);
+}
+
+.dashboard-table th {
+  background-color: #e0e0e0;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.dashboard-table tr:hover {
+  background-color: #f0f0f0;
+  box-shadow: var(--shadow); /* Ombre au hover pour lignes */
+}
+
+/* Bouton WhatsApp-style */
+.whatsapp-button {
+  background-color: var(--accent-color);
+  color: white;
+  padding: 14px 28px;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: var(--transition);
+  display: block;
+  margin: 25px auto; /* Centrage des boutons */
+  font-weight: 500;
+}
+
+.whatsapp-button:hover {
+  background-color: var(--secondary-color);
+  transform: scale(1.05);
+}
+
+.whatsapp-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Formulaires et inputs */
+.input-field {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  transition: var(--transition);
+  max-width: 400px; /* Limite largeur inputs pour centrage dans formes */
+  margin-left: auto;
+  margin-right: auto; /* Centrage des inputs */
+}
+
+.input-field:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 5px rgba(37, 211, 102, 0.5); /* Glow au focus */
+}
+
+/* Listes (ex. certificats) */
+ul {
+  list-style-type: none;
+  padding: 0;
+  text-align: center; /* Centrage des listes pour éviter espace à droite */
+}
+
+/* Messages d'erreur et de chargement */
+.loading,
+.error {
+  text-align: center;
+  margin-top: 60px;
+  font-size: 1.3rem;
+  color: var(--error-color);
+  width: 100%;
+}
+
+/* Responsive pour tablette et mobile */
 @media (max-width: 768px) {
-  .dashboard {
-    padding: 10px;
+  .sidebar {
+    width: 240px;
   }
 
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+  .sidebar-toggle {
+    display: block;
   }
 
-  .user-info form {
-    flex-direction: column;
+  .main-content {
+    padding: 20px 10px;
   }
 
-  .user-info input,
-  .verification input {
-    width: 100%;
-    margin-right: 0;
-    margin-bottom: 10px;
+  .header h1 {
+    font-size: 1.8rem;
   }
 
-  .verification {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  .header p {
+    font-size: 1rem;
   }
 
-  .dynamic-form .field-selector {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .dynamic-form .field-selector button {
-    width: 100%;
-  }
-
-  .employee-cards {
+  .widgets-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 
-  .employee-card {
-    padding: 15px;
+  .avatar,
+  .avatar-placeholder {
+    width: 120px;
+    height: 120px;
+  }
+
+  .profile-section,
+  .table-section,
+  .certificates-section,
+  .employees-section,
+  .forms-section {
+    max-width: 95%; /* Pleine largeur sur mobile sans espace excessif à droite */
+    padding: 15px; /* Padding réduit sur mobile */
+  }
+
+  .widget {
+    max-width: 95%; /* Réduction espace à droite sur mobile */
   }
 }
 
-@media (max-width: 480px) {
-  .profile-pic {
-    width: 60px;
-    height: 60px;
+@media (min-width: 769px) {
+  .sidebar {
+    transform: translateX(0); /* Sidebar toujours visible sur desktop */
   }
 
-  .employee-info p {
-    font-size: 12px;
+  .main-content {
+    margin-left: 280px; /* Décalage pour sidebar */
   }
 
-  .info-icon {
-    width: 16px;
-    height: 16px;
-  }
-
-  button {
-    padding: 8px 16px;
-    font-size: 14px;
+  .sidebar-toggle {
+    display: none;
   }
 }

@@ -1,83 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import './Login.css';
+import './Register.css'; // Réutiliser le même CSS pour cohérence stylistique
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialEmail = location.state?.email || '';
-  const [formData, setFormData] = useState({
-    email: initialEmail,
-    password: '',
-    verificationCode: '',
-  });
+  const [email, setEmail] = useState(location.state?.email || '');
+  const [password, setPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [showCodeInput, setShowCodeInput] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Vérifier si l'utilisateur est déjà inscrit mais non vérifié au chargement
-  useEffect(() => {
-    if (initialEmail) {
-      checkVerificationStatus(initialEmail);
-    }
-  }, [initialEmail]);
-
-  const checkVerificationStatus = async (email) => {
-    try {
-      const res = await axios.post('http://localhost:5000/api/check-verification', { email });
-      if (res.data.isRegistered && !res.data.isVerified) {
-        setMessage('Un code de vérification a été envoyé à votre email.');
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de la vérification du statut');
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'verificationCode' && !/^\d{0,8}$/.test(value)) return; // Limite à 8 chiffres numériques
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setMessage('');
+    setSuccess('');
 
+    // Si le code est requis, vérifier d'abord le code
+    if (showCodeInput) {
+      if (verificationCode.length !== 8 || !/^\d{8}$/.test(verificationCode)) {
+        setError('Le code de vérification doit être exactement 8 chiffres.');
+        setLoading(false);
+        return;
+      }
+      try {
+        await axios.post('http://localhost:5000/api/verify-code', { email, code: verificationCode });
+      } catch (err) {
+        setError(err.response?.data?.message || 'Code de vérification invalide ou expiré.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Procéder à la connexion
     try {
-      const res = await axios.post('http://localhost:5000/api/login', formData);
-      localStorage.setItem('token', res.data.token);
-      // Récupérer les données complètes de l'utilisateur pour les passer au dashboard
-      const userRes = await axios.get('http://localhost:5000/api/user/me', {
-        headers: { Authorization: `Bearer ${res.data.token}` },
-      });
-      setMessage('Connexion réussie ! Redirection...');
-      navigate('/dashboard', { state: { user: userRes.data } });
+      const res = await axios.post('http://localhost:5000/api/login', { email, password });
+      localStorage.setItem('token', res.data.token); // Stocker le token JWT
+      setSuccess('Connexion réussie !');
+      setTimeout(() => navigate('/dashboard'), 2000); // Rediriger vers le dashboard (à adapter)
     } catch (err) {
-      if (err.response?.data?.message.includes('non vérifié')) {
-        setMessage('Vérifiez votre email pour le code et saisissez-le.');
+      if (err.response?.data?.needsVerification) {
+        setShowCodeInput(true);
+        setError('Votre compte n\'est pas vérifié. Entrez le code de vérification (8 chiffres) envoyé par email.');
       } else {
         setError(err.response?.data?.message || 'Erreur lors de la connexion');
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      await axios.post('http://localhost:5000/api/resend-code', {
-        email: formData.email,
-      });
-      setMessage('Un nouveau code de vérification a été envoyé à votre email.');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de l\'envoi du code');
     } finally {
       setLoading(false);
     }
@@ -88,46 +59,39 @@ const Login = () => {
       <div className="form-paper">
         <h2>Connexion</h2>
         {error && <p className="error">{error}</p>}
-        {message && <p className="success">{message}</p>}
+        {success && <p className="success">{success}</p>}
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleSubmit}>
           <input
             type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
             className="input-field"
             required
           />
           <input
             type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleInputChange}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="Mot de passe"
             className="input-field"
             required
           />
-          <input
-            type="text"
-            name="verificationCode"
-            value={formData.verificationCode}
-            onChange={handleInputChange}
-            placeholder="Code de vérification (8 chiffres, si nécessaire)"
-            className="input-field"
-            maxLength={8}
-          />
+          {showCodeInput && (
+            <input
+              type="text"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))} // Accepte seulement les chiffres
+              placeholder="Code de vérification (8 chiffres)"
+              className="input-field"
+              required
+              maxLength={8}
+              minLength={8}
+            />
+          )}
           <button type="submit" className="whatsapp-button" disabled={loading}>
-            {loading ? 'Chargement...' : 'Se connecter'}
-          </button>
-          <button
-            type="button"
-            className="resend-button"
-            onClick={handleResendCode}
-            disabled={loading}
-          >
-            Renvoyer le code
+            {loading ? 'Chargement...' : showCodeInput ? 'Vérifier et connecter' : 'Se connecter'}
           </button>
         </form>
       </div>
