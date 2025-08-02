@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage } from 'react-icons/fa';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -490,7 +490,12 @@ const Dashboard = () => {
               <h3>{editingCertIndex !== null ? 'Modifier le certificat' : 'Ajouter un certificat'}</h3>
               {user.profilePhoto && (
                 <div className="profile-circle">
-                  <img src={`http://localhost:5000/${user.profilePhoto}`} alt="Profile" className="small-avatar" />
+                  <img 
+                    src={`http://localhost:5000/${user.profilePhoto}`} 
+                    alt="Profile" 
+                    className="small-avatar" 
+                    style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block', borderRadius: '50%' }}
+                  />
                 </div>
               )}
               <form onSubmit={handleCertificateSubmit}>
@@ -513,24 +518,49 @@ const Dashboard = () => {
                   onChange={(e) => setCertificateForm({ ...certificateForm, expiryDate: e.target.value })}
                   required
                 />
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setCertificateForm({ ...certificateForm, file: e.target.files[0] })}
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setCertificateForm({ ...certificateForm, image: e.target.files[0] })}
-                />
-                <button type="submit" className="whatsapp-button">
-                  {editingCertIndex !== null ? 'Sauvegarder' : 'Ajouter'}
-                </button>
-                {editingCertIndex !== null && (
-                  <button type="button" onClick={() => { setEditingCertIndex(null); setCertificateForm({ title: '', creationDate: '', expiryDate: '', file: null, image: null }); }}>
-                    Annuler
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      id="cert-pdf"
+                      className="file-input"
+                      onChange={(e) => setCertificateForm({ ...certificateForm, file: e.target.files[0] })}
+                      style={{ display: 'none' }}
+                    />
+                    <label htmlFor="cert-pdf" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <FaFilePdf /> Upload PDF
+                    </label>
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="cert-image"
+                      className="file-input"
+                      onChange={(e) => setCertificateForm({ ...certificateForm, image: e.target.files[0] })}
+                      style={{ display: 'none' }}
+                    />
+                    <label htmlFor="cert-image" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <FaImage /> Upload Image
+                    </label>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button type="submit" className="whatsapp-button" style={{ flex: '1 1 100px' }}>
+                    {editingCertIndex !== null ? 'Sauvegarder' : 'Ajouter'}
                   </button>
-                )}
+                  {editingCertIndex !== null && (
+                    <button 
+                      type="button" 
+                      className="whatsapp-button" 
+                      style={{ flex: '1 1 100px' }}
+                      onClick={() => { setEditingCertIndex(null); setCertificateForm({ title: '', creationDate: '', expiryDate: '', file: null, image: null }); }}
+                    >
+                      Annuler
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>
