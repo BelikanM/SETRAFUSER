@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt } from 'react-icons/fa';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -21,7 +21,8 @@ const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [forms, setForms] = useState([]);
-  const [stats, setStats] = useState({ totalEmployees: 0, totalCertificates: 0, expiredCertificates: 0 });
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState({ totalEmployees: 0, totalCertificates: 0, expiredCertificates: 0, totalUsers: 0, verifiedUsers: 0, approvedUsers: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false); // Pour mobile
@@ -93,6 +94,11 @@ const Dashboard = () => {
         });
         setForms(formsRes.data);
       }
+
+      // Fetch all users if admin
+      if (userRes.data.role === 'admin') {
+        await fetchUsers(token);
+      }
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Token invalide ou expiré. Veuillez vous reconnecter.');
@@ -113,6 +119,23 @@ const Dashboard = () => {
       setStats(statsRes.data);
     } catch (err) {
       console.error('Erreur lors du fetch des stats');
+    }
+  };
+
+  const fetchUsers = async (token) => {
+    try {
+      const usersRes = await axios.get('http://localhost:5000/api/users', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const fetchedUsers = usersRes.data;
+      setUsers(fetchedUsers);
+      // Calculer stats supplémentaires pour super admin
+      const totalUsers = fetchedUsers.length;
+      const verifiedUsers = fetchedUsers.filter(u => u.isVerified).length;
+      const approvedUsers = fetchedUsers.filter(u => u.isApproved).length;
+      setStats(prev => ({ ...prev, totalUsers, verifiedUsers, approvedUsers }));
+    } catch (err) {
+      console.error('Erreur lors du fetch des utilisateurs');
     }
   };
 
@@ -278,6 +301,33 @@ const Dashboard = () => {
     setNewForm({ ...newForm, fields: updatedFields });
   };
 
+  // Toggle rôle admin
+  const handleToggleAdmin = async (userId, isAdmin) => {
+    const token = localStorage.getItem('token');
+    const newRole = isAdmin ? 'admin' : 'employee';
+    try {
+      await axios.post(`http://localhost:5000/api/users/${userId}/update-role`, { role: newRole }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchUsers(token);
+    } catch (err) {
+      setError('Erreur lors de la mise à jour du rôle');
+    }
+  };
+
+  // Approuver inscription
+  const handleApproveUser = async (userId) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.post(`http://localhost:5000/api/users/${userId}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchUsers(token);
+    } catch (err) {
+      setError('Erreur lors de l\'approbation');
+    }
+  };
+
   const getChartData = () => {
     let totalCerts = 0;
     let expiredCerts = 0;
@@ -326,21 +376,27 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container" style={{ backgroundColor: '#f0f0f0', color: '#000', fontFamily: 'Arial, sans-serif' }}>
       {/* Sidebar navigation */}
-      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`} style={{ backgroundColor: '#333', color: '#fff' }}>
         <h3>Menu</h3>
         <ul>
-          <li onClick={() => setCurrentSection('dashboard')}>Dashboard</li>
-          <li onClick={() => setCurrentSection('profile')}>Profil</li>
+          <li onClick={() => setCurrentSection('dashboard')} title="Dashboard"><FaHome /></li>
+          <li onClick={() => setCurrentSection('profile')} title="Profil"><FaUser /></li>
           {(user.role === 'admin' || user.role === 'manager') && (
             <>
-              <li onClick={() => setCurrentSection('employees')}>Gérer les employés</li>
-              <li onClick={() => setCurrentSection('forms')}>Gérer les formulaires</li>
+              <li onClick={() => setCurrentSection('employees')} title="Gérer les employés"><FaUsers /></li>
+              <li onClick={() => setCurrentSection('forms')} title="Gérer les formulaires"><FaFileAlt /></li>
             </>
           )}
-          <li onClick={() => setCurrentSection('certificates')}>Mes certificats</li>
-          <li onClick={handleLogout}>Déconnexion</li>
+          <li onClick={() => setCurrentSection('certificates')} title="Mes certificats"><FaCertificate /></li>
+          {user.role === 'admin' && (
+            <>
+              <li onClick={() => setCurrentSection('users')} title="Gérer les utilisateurs"><FaUserCog /></li>
+              <li onClick={() => setCurrentSection('approvals')} title="Valider les inscriptions"><FaCheck /></li>
+            </>
+          )}
+          <li onClick={handleLogout} title="Déconnexion"><FaSignOutAlt /></li>
         </ul>
       </div>
 
@@ -350,17 +406,17 @@ const Dashboard = () => {
       </button>
 
       {/* Contenu principal basé sur la section */}
-      <div className="main-content">
+      <div className="main-content" style={{ backgroundColor: '#f0f0f0', padding: '20px' }}>
         {currentSection === 'dashboard' && (
           <>
-            <div className="header">
+            <div className="header" style={{ color: '#000' }}>
               <h1>Bienvenue, {user.firstName} {user.lastName} !</h1>
               <p>Rôle : {user.role}</p>
             </div>
 
             {/* Widgets de stats */}
-            <div className="widgets-grid">
-              <div className="widget form-paper">
+            <div className="widgets-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              <div className="widget form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                 <h3>Statistiques</h3>
                 {(user.role === 'admin' || user.role === 'manager') ? (
                   <>
@@ -379,8 +435,15 @@ const Dashboard = () => {
                     }).length}</p>
                   </>
                 )}
+                {user.role === 'admin' && (
+                  <>
+                    <p>Utilisateurs totaux : {stats.totalUsers}</p>
+                    <p>Utilisateurs vérifiés : {stats.verifiedUsers}</p>
+                    <p>Utilisateurs approuvés : {stats.approvedUsers}</p>
+                  </>
+                )}
               </div>
-              <div className="widget form-paper">
+              <div className="widget form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                 <h3>Graphique des certificats</h3>
                 <Bar data={getChartData()} options={{ responsive: true, plugins: { legend: { position: 'top' } } }} />
               </div>
@@ -388,9 +451,9 @@ const Dashboard = () => {
 
             {/* Tableau récent */}
             {(user.role === 'admin' || user.role === 'manager') ? (
-              <div className="table-section form-paper">
+              <div className="table-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '20px' }}>
                 <h3>Employés récents</h3>
-                <table className="dashboard-table">
+                <table className="dashboard-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       <th>Nom</th>
@@ -410,11 +473,11 @@ const Dashboard = () => {
                 </table>
               </div>
             ) : (
-              <div className="table-section form-paper">
+              <div className="table-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '20px' }}>
                 <h3>Mes certificats récents (triés par expiration proche)</h3>
-                <div className="certificates-grid">
+                <div className="certificates-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                   {sortedCertificates.slice(0, 5).map((cert, index) => (
-                    <div className="certificate-card" key={index}>
+                    <div className="certificate-card" key={index} style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                       <h3>{cert.title}</h3>
                       <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                       <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
@@ -430,11 +493,11 @@ const Dashboard = () => {
                         />
                       )}
                       {cert.filePath && (
-                        <div className="pdf-actions">
-                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                        <div className="pdf-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#007bff' }}>
                             <FaEye /> Ouvrir
                           </a>
-                          <a href={`http://localhost:5000/${cert.filePath}`} download>
+                          <a href={`http://localhost:5000/${cert.filePath}`} download style={{ textDecoration: 'none', color: '#007bff' }}>
                             <FaDownload /> Télécharger
                           </a>
                         </div>
@@ -448,7 +511,7 @@ const Dashboard = () => {
         )}
 
         {currentSection === 'profile' && (
-          <div className="profile-section form-paper">
+          <div className="profile-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <h2>Profil</h2>
             <div className="avatar-container">
               {user.profilePhoto ? (
@@ -492,12 +555,12 @@ const Dashboard = () => {
         )}
 
         {currentSection === 'certificates' && (
-          <div className="certificates-section form-paper">
+          <div className="certificates-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <h2>Mes certificats (classifiés par statut d'expiration)</h2>
             <h3>Expirés</h3>
-            <div className="certificates-grid">
+            <div className="certificates-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
               {expiredCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
@@ -513,26 +576,26 @@ const Dashboard = () => {
                     />
                   )}
                   {cert.filePath && (
-                    <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                    <div className="pdf-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
-                  <div className="actions">
-                    <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                  <div className="actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button onClick={() => startEditingCertificate(index, cert)} style={{ flex: 1, backgroundColor: '#007bff', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Modifier</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ flex: 1, backgroundColor: '#dc3545', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
             </div>
             <h3>Expirant bientôt (dans 30 jours)</h3>
-            <div className="certificates-grid">
+            <div className="certificates-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
               {expiringSoonCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
@@ -548,26 +611,26 @@ const Dashboard = () => {
                     />
                   )}
                   {cert.filePath && (
-                    <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                    <div className="pdf-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
-                  <div className="actions">
-                    <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                  <div className="actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button onClick={() => startEditingCertificate(index, cert)} style={{ flex: 1, backgroundColor: '#007bff', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Modifier</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ flex: 1, backgroundColor: '#dc3545', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
             </div>
             <h3>Valides</h3>
-            <div className="certificates-grid">
+            <div className="certificates-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
               {validCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
@@ -583,23 +646,23 @@ const Dashboard = () => {
                     />
                   )}
                   {cert.filePath && (
-                    <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                    <div className="pdf-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ textDecoration: 'none', color: '#007bff' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
-                  <div className="actions">
-                    <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                  <div className="actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button onClick={() => startEditingCertificate(index, cert)} style={{ flex: 1, backgroundColor: '#007bff', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Modifier</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ flex: 1, backgroundColor: '#dc3545', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="certificate-form-card">
+            <div className="certificate-form-card" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '20px' }}>
               <h3>{editingCertIndex !== null ? 'Modifier le certificat' : 'Ajouter un certificat'}</h3>
               {user.profilePhoto && (
                 <div className="profile-circle">
@@ -618,18 +681,21 @@ const Dashboard = () => {
                   onChange={(e) => setCertificateForm({ ...certificateForm, title: e.target.value })}
                   placeholder="Titre"
                   required
+                  style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                 />
                 <input
                   type="date"
                   value={certificateForm.creationDate}
                   onChange={(e) => setCertificateForm({ ...certificateForm, creationDate: e.target.value })}
                   required
+                  style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                 />
                 <input
                   type="date"
                   value={certificateForm.expiryDate}
                   onChange={(e) => setCertificateForm({ ...certificateForm, expiryDate: e.target.value })}
                   required
+                  style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                 />
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <div style={{ flex: '1 1 200px' }}>
@@ -641,7 +707,7 @@ const Dashboard = () => {
                       onChange={(e) => setCertificateForm({ ...certificateForm, file: e.target.files[0] })}
                       style={{ display: 'none' }}
                     />
-                    <label htmlFor="cert-pdf" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <label htmlFor="cert-pdf" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#007bff', color: '#fff', padding: '10px', borderRadius: '4px' }}>
                       <FaFilePdf /> Upload PDF
                     </label>
                   </div>
@@ -654,20 +720,20 @@ const Dashboard = () => {
                       onChange={(e) => setCertificateForm({ ...certificateForm, image: e.target.files[0] })}
                       style={{ display: 'none' }}
                     />
-                    <label htmlFor="cert-image" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <label htmlFor="cert-image" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#007bff', color: '#fff', padding: '10px', borderRadius: '4px' }}>
                       <FaImage /> Upload Image
                     </label>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button type="submit" className="whatsapp-button" style={{ flex: '1 1 100px' }}>
+                  <button type="submit" className="whatsapp-button" style={{ flex: '1 1 100px', backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>
                     {editingCertIndex !== null ? 'Sauvegarder' : 'Ajouter'}
                   </button>
                   {editingCertIndex !== null && (
                     <button 
                       type="button" 
                       className="whatsapp-button" 
-                      style={{ flex: '1 1 100px' }}
+                      style={{ flex: '1 1 100px', backgroundColor: '#dc3545', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}
                       onClick={() => { setEditingCertIndex(null); setCertificateForm({ title: '', creationDate: '', expiryDate: '', file: null, image: null }); }}
                     >
                       Annuler
@@ -680,9 +746,9 @@ const Dashboard = () => {
         )}
 
         {currentSection === 'employees' && (user.role === 'admin' || user.role === 'manager') && (
-          <div className="employees-section form-paper">
+          <div className="employees-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <h2>Gérer les employés</h2>
-            <table className="dashboard-table">
+            <table className="dashboard-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   <th>Nom</th>
@@ -712,6 +778,7 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })}
                 placeholder="Prénom"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <input
                 type="text"
@@ -719,6 +786,7 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
                 placeholder="Nom"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <input
                 type="email"
@@ -726,6 +794,7 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
                 placeholder="Email"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <input
                 type="text"
@@ -733,6 +802,7 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
                 placeholder="Département"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <input
                 type="text"
@@ -740,24 +810,26 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
                 placeholder="Poste"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <input
                 type="date"
                 value={newEmployee.hireDate}
                 onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
-              <button type="submit" className="whatsapp-button">Ajouter</button>
+              <button type="submit" className="whatsapp-button" style={{ width: '100%', backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Ajouter</button>
             </form>
           </div>
         )}
 
         {currentSection === 'forms' && (user.role === 'admin' || user.role === 'manager') && (
-          <div className="forms-section form-paper">
+          <div className="forms-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <h2>Gérer les formulaires</h2>
-            <ul>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
               {forms.map((form, index) => (
-                <li key={index}>
+                <li key={index} style={{ marginBottom: '10px' }}>
                   {form.name} - Champs : {form.fields.length}
                 </li>
               ))}
@@ -770,21 +842,24 @@ const Dashboard = () => {
                 onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
                 placeholder="Nom du formulaire"
                 required
+                style={{ width: '100%', marginBottom: '10px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               <h4>Champs</h4>
               {newForm.fields.map((field, index) => (
-                <div key={index}>
+                <div key={index} style={{ marginBottom: '10px' }}>
                   <input
                     type="text"
                     value={field.fieldName}
                     onChange={(e) => handleFormFieldChange(index, 'fieldName', e.target.value)}
                     placeholder="Nom du champ"
                     required
+                    style={{ width: '100%', marginBottom: '5px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                   />
                   <select
                     value={field.fieldType}
                     onChange={(e) => handleFormFieldChange(index, 'fieldType', e.target.value)}
                     required
+                    style={{ width: '100%', marginBottom: '5px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                   >
                     <option value="text">Texte</option>
                     <option value="number">Nombre</option>
@@ -797,6 +872,7 @@ const Dashboard = () => {
                       value={field.options.join(',')}
                       onChange={(e) => handleFormFieldChange(index, 'options', e.target.value.split(','))}
                       placeholder="Options (séparées par virgule)"
+                      style={{ width: '100%', marginBottom: '5px', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                     />
                   )}
                   <label>
@@ -809,9 +885,74 @@ const Dashboard = () => {
                   </label>
                 </div>
               ))}
-              <button type="button" onClick={addFormField}>Ajouter un champ</button>
-              <button type="submit" className="whatsapp-button">Ajouter le formulaire</button>
+              <button type="button" onClick={addFormField} style={{ marginBottom: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Ajouter un champ</button>
+              <button type="submit" className="whatsapp-button" style={{ width: '100%', backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Ajouter le formulaire</button>
             </form>
+          </div>
+        )}
+
+        {currentSection === 'users' && user.role === 'admin' && (
+          <div className="users-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
+            <h2>Gérer les utilisateurs</h2>
+            <table className="dashboard-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '20%' }}>Nom</th>
+                  <th style={{ width: '20%' }}>Email</th>
+                  <th style={{ width: '15%' }}>Rôle</th>
+                  <th style={{ width: '15%' }}>Admin ?</th>
+                  <th style={{ width: '30%' }}>Certificats</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u._id} style={{ backgroundColor: '#f9f9f9' }}>
+                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px', color: '#000', fontWeight: 'bold' }}>{u.firstName} {u.lastName}</td>
+                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px', color: '#000' }}>{u.email}</td>
+                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px', color: '#000' }}>{u.role}</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={u.role === 'admin'}
+                        onChange={(e) => handleToggleAdmin(u._id, e.target.checked)}
+                        style={{ transform: 'scale(1.5)' }}
+                      />
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px', color: '#000' }}>
+                      {u.certificates.length > 0 ? (
+                        <ul style={{ listStyle: 'none', padding: 0 }}>
+                          {u.certificates.map((cert, idx) => (
+                            <li key={idx} style={{ marginBottom: '5px' }}>{cert.title} (Expire: {new Date(cert.expiryDate).toLocaleDateString()})</li>
+                          ))}
+                        </ul>
+                      ) : 'Aucun certificat'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {currentSection === 'approvals' && user.role === 'admin' && (
+          <div className="approvals-section form-paper" style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+            <h2>Valider les inscriptions (admins en attente)</h2>
+            <div className="certificates-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              {users.filter(u => u.role === 'admin' && !u.isApproved).map((u) => (
+                <div className="certificate-card" key={u._id} style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <h3>{u.firstName} {u.lastName} ({u.email})</h3>
+                  <p>Carte professionnelle :</p>
+                  {u.professionalCard && (
+                    <img 
+                      src={`http://localhost:5000/${u.professionalCard}`} 
+                      alt="Professional Card" 
+                      style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    />
+                  )}
+                  <button onClick={() => handleApproveUser(u._id)} className="whatsapp-button" style={{ marginTop: '10px', width: '100%', backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px' }}>Approuver</button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
