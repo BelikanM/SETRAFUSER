@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock } from 'react-icons/fa';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -40,6 +40,9 @@ const Dashboard = () => {
   // États pour formulaires (ajout simple)
   const [newForm, setNewForm] = useState({ name: '', fields: [{ fieldName: '', fieldType: 'text', options: [], required: false }] });
 
+  // État pour forcer le re-render en temps réel
+  const [tick, setTick] = useState(0);
+
   // Fonction pour calculer le compte à rebours
   const calculateCountdown = (expiryDate) => {
     const now = new Date();
@@ -49,7 +52,8 @@ const Dashboard = () => {
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${days} jours, ${hours} heures, ${minutes} minutes restantes`;
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${days} jours, ${hours} heures, ${minutes} minutes, ${seconds} secondes restantes`;
   };
 
   // Fonction de déconnexion
@@ -116,6 +120,14 @@ const Dashboard = () => {
     fetchData();
   }, [navigate]);
 
+  // Mise à jour en temps réel pour les comptes à rebours
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((prev) => prev + 1);
+    }, 1000); // Mise à jour toutes les secondes pour un effet chronomètre
+    return () => clearInterval(interval);
+  }, []);
+
   // Mise à jour photo profil
   const handlePhotoUpdate = async (e) => {
     const file = e.target.files[0];
@@ -157,6 +169,10 @@ const Dashboard = () => {
   // Gestion du formulaire pour ajouter/modifier un certificat
   const handleCertificateSubmit = async (e) => {
     e.preventDefault();
+    if (new Date(certificateForm.expiryDate) <= new Date(certificateForm.creationDate)) {
+      setError('La date d\'expiration doit être postérieure à la date de création.');
+      return;
+    }
     const formData = new FormData();
     formData.append('title', certificateForm.title);
     formData.append('creationDate', certificateForm.creationDate);
@@ -180,6 +196,7 @@ const Dashboard = () => {
       setUser({ ...user, certificates: res.data.certificates });
       setCertificateForm({ title: '', creationDate: '', expiryDate: '', file: null, image: null });
       setEditingCertIndex(null);
+      setError('');
       if (user.role === 'admin' || user.role === 'manager') {
         await fetchStats(token);
       }
@@ -264,21 +281,27 @@ const Dashboard = () => {
   const getChartData = () => {
     let totalCerts = 0;
     let expiredCerts = 0;
+    let expiringSoon = 0;
     if (user.role === 'admin' || user.role === 'manager') {
       totalCerts = stats.totalCertificates;
       expiredCerts = stats.expiredCertificates;
+      expiringSoon = 0; // Assumer que le backend peut être mis à jour pour fournir cette valeur
     } else {
       totalCerts = user.certificates.length;
       expiredCerts = user.certificates.filter(cert => new Date(cert.expiryDate) < new Date()).length;
+      expiringSoon = user.certificates.filter(cert => {
+        const diff = new Date(cert.expiryDate) - new Date();
+        return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000; // Dans les 30 prochains jours
+      }).length;
     }
     return {
-      labels: ['Certificats totaux', 'Certificats expirés'],
+      labels: ['Certificats valides', 'Expirant bientôt', 'Certificats expirés'],
       datasets: [
         {
           label: 'Statistiques des certificats',
-          data: [totalCerts, expiredCerts],
-          backgroundColor: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 99, 132, 0.6)'],
-          borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)'],
+          data: [totalCerts - expiredCerts - expiringSoon, expiringSoon, expiredCerts],
+          backgroundColor: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)'],
+          borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'],
           borderWidth: 1,
         },
       ],
@@ -287,6 +310,20 @@ const Dashboard = () => {
 
   if (loading) return <div className="loading">Chargement...</div>;
   if (error) return <div className="error">{error}</div>;
+
+  // Tri des certificats par date d'expiration (chronologie : le plus proche en premier)
+  const sortedCertificates = [...(user?.certificates || [])].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+
+  // Classification des certificats
+  const expiredCerts = sortedCertificates.filter(cert => new Date(cert.expiryDate) < new Date());
+  const expiringSoonCerts = sortedCertificates.filter(cert => {
+    const diff = new Date(cert.expiryDate) - new Date();
+    return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000;
+  });
+  const validCerts = sortedCertificates.filter(cert => {
+    const diff = new Date(cert.expiryDate) - new Date();
+    return diff >= 30 * 24 * 60 * 60 * 1000;
+  });
 
   return (
     <div className="dashboard-container">
@@ -329,12 +366,17 @@ const Dashboard = () => {
                   <>
                     <p>Employés totaux : {stats.totalEmployees}</p>
                     <p>Certificats totaux : {stats.totalCertificates}</p>
-                    <p>Certificats expirés : {stats.expiredCertificates}</p>
+                    <p><FaClock /> Certificats expirés : {stats.expiredCertificates}</p>
+                    <p><FaClock /> Certificats expirant bientôt (30 jours) : {0 /* Assumer backend pour valeur globale */}</p>
                   </>
                 ) : (
                   <>
                     <p>Certificats totaux : {user.certificates.length}</p>
-                    <p>Certificats expirés : {user.certificates.filter(cert => new Date(cert.expiryDate) < new Date()).length}</p>
+                    <p><FaClock /> Certificats expirés : {user.certificates.filter(cert => new Date(cert.expiryDate) < new Date()).length}</p>
+                    <p><FaClock /> Certificats expirant bientôt (30 jours) : {user.certificates.filter(cert => {
+                      const diff = new Date(cert.expiryDate) - new Date();
+                      return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000;
+                    }).length}</p>
                   </>
                 )}
               </div>
@@ -369,15 +411,15 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="table-section form-paper">
-                <h3>Mes certificats récents</h3>
+                <h3>Mes certificats récents (triés par expiration proche)</h3>
                 <div className="certificates-grid">
-                  {user.certificates.slice(0, 5).map((cert, index) => (
+                  {sortedCertificates.slice(0, 5).map((cert, index) => (
                     <div className="certificate-card" key={index}>
                       <h3>{cert.title}</h3>
-                      <p>Créé le : {new Date(cert.creationDate).toLocaleDateString()}</p>
-                      <p>Expire le : {new Date(cert.expiryDate).toLocaleDateString()}</p>
+                      <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
+                      <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
                       <div className="countdown-box">
-                        <p>Compte à rebours : {calculateCountdown(cert.expiryDate)}</p>
+                        <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                       </div>
                       {cert.imagePath && (
                         <img 
@@ -451,15 +493,86 @@ const Dashboard = () => {
 
         {currentSection === 'certificates' && (
           <div className="certificates-section form-paper">
-            <h2>Mes certificats</h2>
+            <h2>Mes certificats (classifiés par statut d'expiration)</h2>
+            <h3>Expirés</h3>
             <div className="certificates-grid">
-              {user.certificates.map((cert, index) => (
+              {expiredCerts.map((cert, index) => (
                 <div className="certificate-card" key={index}>
                   <h3>{cert.title}</h3>
-                  <p>Créé le : {new Date(cert.creationDate).toLocaleDateString()}</p>
-                  <p>Expire le : {new Date(cert.expiryDate).toLocaleDateString()}</p>
+                  <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
+                  <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
                   <div className="countdown-box">
-                    <p>Compte à rebours : {calculateCountdown(cert.expiryDate)}</p>
+                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                  </div>
+                  {cert.imagePath && (
+                    <img 
+                      src={`http://localhost:5000/${cert.imagePath}`} 
+                      alt="Certificate Image" 
+                      className="cert-image" 
+                      style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    />
+                  )}
+                  {cert.filePath && (
+                    <div className="pdf-actions">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                        <FaEye /> Ouvrir
+                      </a>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                        <FaDownload /> Télécharger
+                      </a>
+                    </div>
+                  )}
+                  <div className="actions">
+                    <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
+                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <h3>Expirant bientôt (dans 30 jours)</h3>
+            <div className="certificates-grid">
+              {expiringSoonCerts.map((cert, index) => (
+                <div className="certificate-card" key={index}>
+                  <h3>{cert.title}</h3>
+                  <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
+                  <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
+                  <div className="countdown-box">
+                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                  </div>
+                  {cert.imagePath && (
+                    <img 
+                      src={`http://localhost:5000/${cert.imagePath}`} 
+                      alt="Certificate Image" 
+                      className="cert-image" 
+                      style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    />
+                  )}
+                  {cert.filePath && (
+                    <div className="pdf-actions">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                        <FaEye /> Ouvrir
+                      </a>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                        <FaDownload /> Télécharger
+                      </a>
+                    </div>
+                  )}
+                  <div className="actions">
+                    <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
+                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <h3>Valides</h3>
+            <div className="certificates-grid">
+              {validCerts.map((cert, index) => (
+                <div className="certificate-card" key={index}>
+                  <h3>{cert.title}</h3>
+                  <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
+                  <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
+                  <div className="countdown-box">
+                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                   </div>
                   {cert.imagePath && (
                     <img 
