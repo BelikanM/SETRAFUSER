@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Register.css'; // Réutiliser le même CSS pour cohérence stylistique
@@ -10,15 +10,26 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [showCodeInput, setShowCodeInput] = useState(false);
+  const [showApprovalMessage, setShowApprovalMessage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Vérifier le localStorage au montage pour persister l'état d'attente d'approbation
+  useEffect(() => {
+    const pendingEmail = localStorage.getItem('pendingApprovalEmail');
+    if (pendingEmail) {
+      setEmail(pendingEmail);
+      setShowApprovalMessage(true);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
+    setShowApprovalMessage(false); // Réinitialiser le message en cas de tentative
 
     // Si le code est requis, vérifier d'abord le code
     if (showCodeInput) {
@@ -40,12 +51,17 @@ const Login = () => {
     try {
       const res = await axios.post('http://localhost:5000/api/login', { email, password });
       localStorage.setItem('token', res.data.token); // Stocker le token JWT
+      localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
       setSuccess('Connexion réussie !');
       setTimeout(() => navigate('/dashboard'), 2000); // Rediriger vers le dashboard (à adapter)
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setShowCodeInput(true);
         setError('Votre compte n\'est pas vérifié. Entrez le code de vérification (8 chiffres) envoyé par email.');
+      } else if (err.response?.data?.needsApproval) {
+        setShowApprovalMessage(true);
+        localStorage.setItem('pendingApprovalEmail', email); // Persister l'email en attente
+        setError('Votre compte est en attente d\'approbation par un administrateur. Veuillez patienter.');
       } else {
         setError(err.response?.data?.message || 'Erreur lors de la connexion');
       }
@@ -60,6 +76,7 @@ const Login = () => {
         <h2>Connexion</h2>
         {error && <p className="error">{error}</p>}
         {success && <p className="success">{success}</p>}
+        {showApprovalMessage && <p className="error">Votre compte est en attente d'approbation. Veuillez patienter jusqu'à ce qu'un administrateur valide votre carte professionnelle.</p>}
 
         <form onSubmit={handleSubmit}>
           <input

@@ -1,3 +1,4 @@
+// Dashboard.js (modified with reject functionality)
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -325,6 +326,19 @@ const Dashboard = () => {
       await fetchUsers(token);
     } catch (err) {
       setError('Erreur lors de l\'approbation');
+    }
+  };
+
+  // Rejeter inscription (invalider carte professionnelle)
+  const handleRejectUser = async (userId) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.post(`http://localhost:5000/api/users/${userId}/reject`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchUsers(token);
+    } catch (err) {
+      setError('Erreur lors du rejet');
     }
   };
 
@@ -921,7 +935,7 @@ const Dashboard = () => {
 
         {currentSection === 'approvals' && user.role === 'admin' && (
           <div className="approvals-section form-paper">
-            <h2>Valider les inscriptions (admins en attente)</h2>
+            <h2>Valider ou invalider les cartes professionnelles (admins en attente)</h2>
             <div className="certificates-grid">
               {users.filter(u => u.role === 'admin' && !u.isApproved).map((u) => (
                 <div className="certificate-card" key={u._id}>
@@ -934,7 +948,10 @@ const Dashboard = () => {
                       style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                     />
                   )}
-                  <button onClick={() => handleApproveUser(u._id)} className="whatsapp-button">Approuver</button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => handleApproveUser(u._id)} className="whatsapp-button">Valider</button>
+                    <button onClick={() => handleRejectUser(u._id)} className="whatsapp-button" style={{ backgroundColor: 'red' }}>Invalider</button>
+                  </div>
                 </div>
               ))}
             </div>
