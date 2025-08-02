@@ -77,8 +77,8 @@ const Register = () => {
       await axios.post('http://localhost:5000/api/register', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setSuccess('Inscription réussie ! Un lien de vérification a été envoyé à votre email.');
-      setTimeout(() => navigate('/verify', { state: { email: formData.email } }), 2000);
+      setSuccess('Inscription réussie ! Un code de vérification a été envoyé à votre email.');
+      setTimeout(() => navigate('/login', { state: { email: formData.email } }), 2000);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de l\'inscription');
     } finally {

@@ -4,6 +4,8 @@
   align-items: center;
   min-height: 100vh;
   background: #ece5dd;
+  padding-bottom: 60px; /* Ajout pour éviter le conflit avec la barre de navigation footer globale */
+  box-sizing: border-box; /* Pour inclure le padding dans les calculs de hauteur */
 }
 
 .form-paper {
@@ -14,6 +16,11 @@
   background: #fff;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   text-align: center;
+  transition: box-shadow 0.3s ease; /* Ajout pour un design plus puissant avec transition */
+}
+
+.form-paper:hover {
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15); /* Effet hover pour un aspect plus dynamique */
 }
 
 .avatar-container {
@@ -28,6 +35,7 @@
   height: 80px;
   border-radius: 50%;
   object-fit: cover;
+  border: 2px solid #25d366; /* Ajout d'une bordure verte pour matcher le thème WhatsApp */
 }
 
 .avatar-placeholder {
@@ -39,6 +47,7 @@
   justify-content: center;
   align-items: center;
   font-size: 40px;
+  border: 2px solid #ccc; /* Bordure pour cohérence */
 }
 
 .file-input {
@@ -53,6 +62,7 @@
   cursor: pointer;
   margin-top: 10px;
   font-size: 14px;
+  transition: background 0.3s ease; /* Transition pour un design plus fluide */
 }
 
 .upload-button:hover {
@@ -66,6 +76,12 @@
   border: 1px solid #ccc;
   border-radius: 5px;
   font-size: 16px;
+  transition: border-color 0.3s ease; /* Transition pour focus */
+}
+
+.input-field:focus {
+  border-color: #25d366; /* Bordure verte au focus pour matcher le thème */
+  outline: none;
 }
 
 .certificate-container {
@@ -73,6 +89,8 @@
   border-radius: 5px;
   padding: 10px;
   margin-bottom: 10px;
+  background: #f9f9f9; /* Fond léger pour distinction */
+  position: relative; /* Pour positionner le bouton delete */
 }
 
 .add-button {
@@ -82,6 +100,11 @@
   cursor: pointer;
   font-size: 16px;
   margin: 10px 0;
+  transition: color 0.3s ease;
+}
+
+.add-button:hover {
+  color: #1ebe54;
 }
 
 .delete-button {
@@ -90,7 +113,13 @@
   border: none;
   cursor: pointer;
   font-size: 16px;
-  margin-left: 10px;
+  position: absolute;
+  top: 10px;
+  right: 10px; /* Positionnement en haut à droite pour un meilleur UX */
+}
+
+.delete-button:hover {
+  color: #cc0000;
 }
 
 .whatsapp-button {
@@ -103,22 +132,59 @@
   width: 100%;
   font-size: 16px;
   margin-top: 20px;
+  transition: background 0.3s ease, transform 0.2s ease; /* Transitions pour un effet puissant */
 }
 
 .whatsapp-button:hover {
   background: #1ebe54;
+  transform: translateY(-2px); /* Légère élévation au hover */
 }
 
 .whatsapp-button:disabled {
   background: #ccc;
   cursor: not-allowed;
+  transform: none;
 }
 
 .error {
   color: #ff4444;
   margin-bottom: 10px;
+  font-weight: bold; /* Plus visible */
+}
+
+.success {
+  color: #25d366;
+  margin-bottom: 10px;
+  font-weight: bold;
 }
 
 h2, h3 {
   color: #333;
+}
+
+/* Media queries pour responsivité (design puissant sur tous les appareils) */
+@media (max-width: 600px) {
+  .form-paper {
+    padding: 15px;
+    max-width: 90%;
+  }
+
+  .avatar {
+    width: 60px;
+    height: 60px;
+  }
+
+  .avatar-placeholder {
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+  }
+
+  .input-field {
+    font-size: 14px;
+  }
+
+  .whatsapp-button {
+    font-size: 14px;
+  }
 }

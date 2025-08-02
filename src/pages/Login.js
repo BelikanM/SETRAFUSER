@@ -14,7 +14,6 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isVerificationStep, setIsVerificationStep] = useState(false);
   const [message, setMessage] = useState('');
 
   // Vérifier si l'utilisateur est déjà inscrit mais non vérifié au chargement
@@ -28,7 +27,6 @@ const Login = () => {
     try {
       const res = await axios.post('http://localhost:5000/api/check-verification', { email });
       if (res.data.isRegistered && !res.data.isVerified) {
-        setIsVerificationStep(true);
         setMessage('Un code de vérification a été envoyé à votre email.');
       }
     } catch (err) {
@@ -38,6 +36,7 @@ const Login = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'verificationCode' && !/^\d{0,8}$/.test(value)) return; // Limite à 8 chiffres numériques
     setFormData({ ...formData, [name]: value });
   };
 
@@ -48,39 +47,20 @@ const Login = () => {
     setMessage('');
 
     try {
-      const res = await axios.post('http://localhost:5000/api/login', {
-        email: formData.email,
-        password: formData.password,
-      });
-      if (res.data.message === 'Compte non vérifié. Vérifiez votre email pour le code.') {
-        setIsVerificationStep(true);
-        setMessage('Un code de vérification a été envoyé à votre email.');
-      } else {
-        localStorage.setItem('token', res.data.token);
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de la connexion');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyCode = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      const res = await axios.post('http://localhost:5000/api/verify-code', {
-        email: formData.email,
-        code: formData.verificationCode,
-      });
+      const res = await axios.post('http://localhost:5000/api/login', formData);
       localStorage.setItem('token', res.data.token);
-      navigate('/dashboard');
+      // Récupérer les données complètes de l'utilisateur pour les passer au dashboard
+      const userRes = await axios.get('http://localhost:5000/api/user/me', {
+        headers: { Authorization: `Bearer ${res.data.token}` },
+      });
+      setMessage('Connexion réussie ! Redirection...');
+      navigate('/dashboard', { state: { user: userRes.data } });
     } catch (err) {
-      setError(err.response?.data?.message || 'Code de vérification invalide');
+      if (err.response?.data?.message.includes('non vérifié')) {
+        setMessage('Vérifiez votre email pour le code et saisissez-le.');
+      } else {
+        setError(err.response?.data?.message || 'Erreur lors de la connexion');
+      }
     } finally {
       setLoading(false);
     }
@@ -106,58 +86,50 @@ const Login = () => {
   return (
     <div className="whatsapp-container">
       <div className="form-paper">
-        <h2>{isVerificationStep ? 'Vérification du code' : 'Connexion'}</h2>
+        <h2>Connexion</h2>
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
 
-        {!isVerificationStep ? (
-          <form onSubmit={handleLogin}>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="Email"
-              className="input-field"
-              required
-            />
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="Mot de passe"
-              className="input-field"
-              required
-            />
-            <button type="submit" className="whatsapp-button" disabled={loading}>
-              {loading ? 'Chargement...' : 'Se connecter'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyCode}>
-            <input
-              type="text"
-              name="verificationCode"
-              value={formData.verificationCode}
-              onChange={handleInputChange}
-              placeholder="Code de vérification"
-              className="input-field"
-              required
-            />
-            <button type="submit" className="whatsapp-button" disabled={loading}>
-              {loading ? 'Chargement...' : 'Vérifier'}
-            </button>
-            <button
-              type="button"
-              className="resend-button"
-              onClick={handleResendCode}
-              disabled={loading}
-            >
-              Renvoyer le code
-            </button>
-          </form>
-        )}
+        <form onSubmit={handleLogin}>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            placeholder="Email"
+            className="input-field"
+            required
+          />
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleInputChange}
+            placeholder="Mot de passe"
+            className="input-field"
+            required
+          />
+          <input
+            type="text"
+            name="verificationCode"
+            value={formData.verificationCode}
+            onChange={handleInputChange}
+            placeholder="Code de vérification (8 chiffres, si nécessaire)"
+            className="input-field"
+            maxLength={8}
+          />
+          <button type="submit" className="whatsapp-button" disabled={loading}>
+            {loading ? 'Chargement...' : 'Se connecter'}
+          </button>
+          <button
+            type="button"
+            className="resend-button"
+            onClick={handleResendCode}
+            disabled={loading}
+          >
+            Renvoyer le code
+          </button>
+        </form>
       </div>
     </div>
   );
