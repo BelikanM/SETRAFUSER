@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { FaEye, FaDownload } from 'react-icons/fa';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -379,18 +380,22 @@ const Dashboard = () => {
                         <p>Compte à rebours : {calculateCountdown(cert.expiryDate)}</p>
                       </div>
                       {cert.imagePath && (
-                        <img src={`http://localhost:5000/${cert.imagePath}`} alt="Certificate Image" className="cert-image" />
+                        <img 
+                          src={`http://localhost:5000/${cert.imagePath}`} 
+                          alt="Certificate Image" 
+                          className="cert-image" 
+                          style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                        />
                       )}
                       {cert.filePath && (
-                        <>
-                          <embed
-                            src={`http://localhost:5000/${cert.filePath}#toolbar=0`}
-                            type="application/pdf"
-                            width="100%"
-                            height="300px"
-                          />
-                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">Ouvrir PDF</a>
-                        </>
+                        <div className="pdf-actions">
+                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                            <FaEye /> Ouvrir
+                          </a>
+                          <a href={`http://localhost:5000/${cert.filePath}`} download>
+                            <FaDownload /> Télécharger
+                          </a>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -457,18 +462,22 @@ const Dashboard = () => {
                     <p>Compte à rebours : {calculateCountdown(cert.expiryDate)}</p>
                   </div>
                   {cert.imagePath && (
-                    <img src={`http://localhost:5000/${cert.imagePath}`} alt="Certificate Image" className="cert-image" />
+                    <img 
+                      src={`http://localhost:5000/${cert.imagePath}`} 
+                      alt="Certificate Image" 
+                      className="cert-image" 
+                      style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    />
                   )}
                   {cert.filePath && (
-                    <>
-                      <embed
-                        src={`http://localhost:5000/${cert.filePath}#toolbar=0`}
-                        type="application/pdf"
-                        width="100%"
-                        height="300px"
-                      />
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">Ouvrir PDF</a>
-                    </>
+                    <div className="pdf-actions">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                        <FaEye /> Ouvrir
+                      </a>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                        <FaDownload /> Télécharger
+                      </a>
+                    </div>
                   )}
                   <div className="actions">
                     <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
