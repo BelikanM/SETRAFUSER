@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { UserContext } from '../context/UserContext'; // Import UserContext
 import axios from 'axios';
-import './Register.css'; // Réutiliser le même CSS pour cohérence stylistique
+import './Login.css'; // Assume same as Register CSS
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { setToken } = useContext(UserContext); // Use setToken from context
   const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -51,6 +53,7 @@ const Login = () => {
     try {
       const res = await axios.post('http://localhost:5000/api/login', { email, password });
       localStorage.setItem('token', res.data.token); // Stocker le token JWT
+      setToken(res.data.token); // Mettre à jour le context immédiatement pour chargement dynamique
       localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
       setSuccess('Connexion réussie !');
       setTimeout(() => navigate('/dashboard'), 2000); // Rediriger vers le dashboard (à adapter)

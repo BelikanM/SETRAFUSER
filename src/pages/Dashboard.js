@@ -13,12 +13,14 @@ import {
 import { Bar } from 'react-chartjs-2';
 import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt } from 'react-icons/fa';
 import axios from 'axios';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
-  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
+  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers, fetchData } = useContext(UserContext);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Pour mobile
   const [currentSection, setCurrentSection] = useState('dashboard'); // Section actuelle
 
@@ -36,8 +38,11 @@ const Dashboard = () => {
   const [isEditingEmployee, setIsEditingEmployee] = useState(false); // Flag édition
   const [editingEmployeeId, setEditingEmployeeId] = useState(null); // ID pour édition
 
-  // États pour formulaires (ajout simple)
-  const [newForm, setNewForm] = useState({ name: '', fields: [{ fieldName: '', fieldType: 'text', options: [], required: false }] });
+  // États pour formulaires/blog
+  const [newFormName, setNewFormName] = useState('');
+  const [formContent, setFormContent] = useState('');
+  const [isEditingForm, setIsEditingForm] = useState(false);
+  const [editingFormId, setEditingFormId] = useState(null);
 
   // État pour forcer le re-render en temps réel
   const [tick, setTick] = useState(0);
@@ -47,6 +52,13 @@ const Dashboard = () => {
       setEditProfile({ firstName: user.firstName, lastName: user.lastName });
     }
   }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token && !user && !loading) {
+      fetchData(token);
+    }
+  }, [user, loading, fetchData]);
 
   // Fonction pour calculer le compte à rebours
   const calculateCountdown = (expiryDate) => {
@@ -262,33 +274,51 @@ const Dashboard = () => {
     }
   };
 
-  // Ajout formulaire
-  const handleAddForm = async (e) => {
+  // Ajout/Edition formulaire (blog)
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.post('http://localhost:5000/api/forms', newForm, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setForms([...forms, res.data]);
-      setNewForm({ name: '', fields: [{ fieldName: '', fieldType: 'text', options: [], required: false }] });
+      let res;
+      if (isEditingForm) {
+        res = await axios.put(`http://localhost:5000/api/forms/${editingFormId}`, { name: newFormName, content: formContent }, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setForms(forms.map(f => f._id === editingFormId ? res.data : f));
+        setIsEditingForm(false);
+        setEditingFormId(null);
+      } else {
+        res = await axios.post('http://localhost:5000/api/forms', { name: newFormName, content: formContent }, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setForms([res.data, ...forms]); // Ajoute en premier
+      }
+      setNewFormName('');
+      setFormContent('');
     } catch (err) {
-      setError('Erreur lors de l\'ajout du formulaire');
+      setError('Erreur lors de l\'opération sur le formulaire');
     }
   };
 
-  // Gestion des champs dynamiques pour formulaires
-  const addFormField = () => {
-    setNewForm({
-      ...newForm,
-      fields: [...newForm.fields, { fieldName: '', fieldType: 'text', options: [], required: false }]
-    });
+  // Edition formulaire
+  const startEditingForm = (form) => {
+    setNewFormName(form.name);
+    setFormContent(form.content || '');
+    setIsEditingForm(true);
+    setEditingFormId(form._id);
   };
 
-  const handleFormFieldChange = (index, field, value) => {
-    const updatedFields = [...newForm.fields];
-    updatedFields[index][field] = value;
-    setNewForm({ ...newForm, fields: updatedFields });
+  // Suppression formulaire
+  const handleDeleteForm = async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.delete(`http://localhost:5000/api/forms/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setForms(forms.filter(f => f._id !== id));
+    } catch (err) {
+      setError('Erreur lors de la suppression du formulaire');
+    }
   };
 
   // Toggle rôle admin
@@ -452,41 +482,28 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Section Employés récents modifiée */}
+            {/* Tableau récent */}
             {(user.role === 'admin' || user.role === 'manager') ? (
               <div className="table-section form-paper">
                 <h3>Employés récents</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', overflow: 'hidden' }}>
-                  {employees.slice(0, 5).map((emp) => (
-                    <div key={emp._id} style={{ position: 'relative', height: '200px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', color: 'white' }}>
-                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Fond" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
-                      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaUser style={{ color: 'white' }} />
-                          <span>{emp.firstName} {emp.lastName}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaEnvelope style={{ color: 'white' }} />
-                          <span>{emp.email}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaUserTie style={{ color: 'white' }} />
-                          <span>{emp.position}</span>
-                        </div>
-                      </div>
-                      {emp.pdfPath && (
-                        <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '10px' }}>
-                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: 'white' }}>
-                            <FaEye />
-                          </a>
-                          <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white' }}>
-                            <FaDownload />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Email</th>
+                      <th>Poste</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.slice(0, 5).map((emp) => (
+                      <tr key={emp._id}>
+                        <td>{emp.firstName} {emp.lastName}</td>
+                        <td>{emp.email}</td>
+                        <td>{emp.position}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="table-section form-paper">
@@ -897,63 +914,49 @@ const Dashboard = () => {
 
         {currentSection === 'forms' && (user.role === 'admin' || user.role === 'manager') && (
           <div className="forms-section form-paper">
-            <h2>Gérer les formulaires</h2>
-            <ul>
-              {forms.map((form, index) => (
-                <li key={index}>
-                  {form.name} - Champs : {form.fields.length}
-                </li>
-              ))}
-            </ul>
-            <h3>Ajouter un formulaire</h3>
-            <form onSubmit={handleAddForm}>
-              <input
-                type="text"
-                value={newForm.name}
-                onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
-                placeholder="Nom du formulaire"
-                required
-              />
-              <h4>Champs</h4>
-              {newForm.fields.map((field, index) => (
-                <div key={index}>
-                  <input
-                    type="text"
-                    value={field.fieldName}
-                    onChange={(e) => handleFormFieldChange(index, 'fieldName', e.target.value)}
-                    placeholder="Nom du champ"
-                    required
-                  />
-                  <select
-                    value={field.fieldType}
-                    onChange={(e) => handleFormFieldChange(index, 'fieldType', e.target.value)}
-                    required
-                  >
-                    <option value="text">Texte</option>
-                    <option value="number">Nombre</option>
-                    <option value="date">Date</option>
-                    <option value="select">Sélection</option>
-                  </select>
-                  {field.fieldType === 'select' && (
-                    <input
-                      type="text"
-                      value={field.options.join(',')}
-                      onChange={(e) => handleFormFieldChange(index, 'options', e.target.value.split(','))}
-                      placeholder="Options (séparées par virgule)"
-                    />
-                  )}
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={field.required}
-                      onChange={(e) => handleFormFieldChange(index, 'required', e.target.checked)}
-                    />
-                    Obligatoire
-                  </label>
+            <h2>Gérer les articles de blog</h2>
+            <div className="forms-list" style={{ marginBottom: '20px' }}>
+              {forms.map((form) => (
+                <div key={form._id} style={{ border: '1px solid #ddd', padding: '15px', marginBottom: '10px', borderRadius: '8px' }}>
+                  <h4>{form.name}</h4>
+                  <div dangerouslySetInnerHTML={{ __html: form.content ? form.content.substring(0, 200) + '...' : 'Pas de contenu' }} />
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button onClick={() => startEditingForm(form)}><FaEdit /> Modifier</button>
+                    <button onClick={() => handleDeleteForm(form._id)} style={{ backgroundColor: 'red' }}><FaTrash /> Supprimer</button>
+                  </div>
                 </div>
               ))}
-              <button type="button" onClick={addFormField}>Ajouter un champ</button>
-              <button type="submit" className="whatsapp-button">Ajouter le formulaire</button>
+            </div>
+            <h3>{isEditingForm ? 'Modifier l\'article' : 'Créer un article'}</h3>
+            <form onSubmit={handleFormSubmit}>
+              <input
+                type="text"
+                value={newFormName}
+                onChange={(e) => setNewFormName(e.target.value)}
+                placeholder="Titre de l'article"
+                required
+              />
+              <ReactQuill 
+                value={formContent}
+                onChange={setFormContent}
+                modules={{
+                  toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+                    [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+                    ['link', 'image'],
+                    ['clean']
+                  ],
+                }}
+                formats={['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image']}
+                style={{ height: '300px', marginBottom: '20px' }}
+              />
+              <button type="submit" className="whatsapp-button">{isEditingForm ? 'Sauvegarder' : 'Publier'}</button>
+              {isEditingForm && (
+                <button type="button" onClick={() => { setIsEditingForm(false); setNewFormName(''); setFormContent(''); setEditingFormId(null); }} className="whatsapp-button" style={{ backgroundColor: 'gray', marginLeft: '10px' }}>
+                  Annuler
+                </button>
+              )}
             </form>
           </div>
         )}
