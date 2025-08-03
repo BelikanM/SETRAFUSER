@@ -1,7 +1,6 @@
-// Dashboard.js (modified with reject functionality)
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// src/pages/Dashboard.js
+import React, { useState, useEffect, useContext } from 'react';
+import { UserContext } from '../context/UserContext'; // New import
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,20 +11,14 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt } from 'react-icons/fa';
+import axios from 'axios';
 import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [forms, setForms] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [stats, setStats] = useState({ totalEmployees: 0, totalCertificates: 0, expiredCertificates: 0, totalUsers: 0, verifiedUsers: 0, approvedUsers: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Pour mobile
   const [currentSection, setCurrentSection] = useState('dashboard'); // Section actuelle
 
@@ -36,14 +29,24 @@ const Dashboard = () => {
   const [certificateForm, setCertificateForm] = useState({ title: '', creationDate: '', expiryDate: '', file: null, image: null });
   const [editingCertIndex, setEditingCertIndex] = useState(null);
 
-  // États pour employés (ajout simple)
+  // États pour employés
   const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' });
+  const [selectedPhoto, setSelectedPhoto] = useState(null); // Photo upload
+  const [selectedPdf, setSelectedPdf] = useState(null); // PDF/DOC upload
+  const [isEditingEmployee, setIsEditingEmployee] = useState(false); // Flag édition
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null); // ID pour édition
 
   // États pour formulaires (ajout simple)
   const [newForm, setNewForm] = useState({ name: '', fields: [{ fieldName: '', fieldType: 'text', options: [], required: false }] });
 
   // État pour forcer le re-render en temps réel
   const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      setEditProfile({ firstName: user.firstName, lastName: user.lastName });
+    }
+  }, [user]);
 
   // Fonction pour calculer le compte à rebours
   const calculateCountdown = (expiryDate) => {
@@ -57,92 +60,6 @@ const Dashboard = () => {
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     return `${days} jours, ${hours} heures, ${minutes} minutes, ${seconds} secondes restantes`;
   };
-
-  // Fonction de déconnexion
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
-
-  const fetchData = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Aucun token trouvé. Veuillez vous connecter.');
-      handleLogout();
-      return;
-    }
-
-    try {
-      // Fetch user profile
-      const userRes = await axios.get('http://localhost:5000/api/user/profile', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUser(userRes.data);
-      setEditProfile({ firstName: userRes.data.firstName, lastName: userRes.data.lastName });
-
-      // Fetch stats if admin or manager
-      if (userRes.data.role === 'admin' || userRes.data.role === 'manager') {
-        await fetchStats(token);
-        // Fetch employees
-        const employeesRes = await axios.get('http://localhost:5000/api/employees', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setEmployees(employeesRes.data);
-
-        // Fetch forms
-        const formsRes = await axios.get('http://localhost:5000/api/forms', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setForms(formsRes.data);
-      }
-
-      // Fetch all users if admin
-      if (userRes.data.role === 'admin') {
-        await fetchUsers(token);
-      }
-    } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 403) {
-        setError('Token invalide ou expiré. Veuillez vous reconnecter.');
-        handleLogout();
-      } else {
-        setError(err.response?.data?.message || 'Erreur lors du chargement des données');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async (token) => {
-    try {
-      const statsRes = await axios.get('http://localhost:5000/api/stats', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setStats(statsRes.data);
-    } catch (err) {
-      console.error('Erreur lors du fetch des stats');
-    }
-  };
-
-  const fetchUsers = async (token) => {
-    try {
-      const usersRes = await axios.get('http://localhost:5000/api/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const fetchedUsers = usersRes.data;
-      setUsers(fetchedUsers);
-      // Calculer stats supplémentaires pour super admin
-      const totalUsers = fetchedUsers.length;
-      const verifiedUsers = fetchedUsers.filter(u => u.isVerified).length;
-      const approvedUsers = fetchedUsers.filter(u => u.isApproved).length;
-      setStats(prev => ({ ...prev, totalUsers, verifiedUsers, approvedUsers }));
-    } catch (err) {
-      console.error('Erreur lors du fetch des utilisateurs');
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [navigate]);
 
   // Mise à jour en temps réel pour les comptes à rebours
   useEffect(() => {
@@ -257,19 +174,91 @@ const Dashboard = () => {
     }
   };
 
-  // Ajout employé
-  const handleAddEmployee = async (e) => {
+  // Ajout/Edition employé
+  const handleEmployeeSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('firstName', newEmployee.firstName);
+    formData.append('lastName', newEmployee.lastName);
+    formData.append('email', newEmployee.email);
+    formData.append('department', newEmployee.department);
+    formData.append('position', newEmployee.position);
+    formData.append('hireDate', newEmployee.hireDate);
+    if (selectedPhoto) formData.append('profilePhoto', selectedPhoto);
+    if (selectedPdf) formData.append('pdf', selectedPdf);
+
     try {
-      const res = await axios.post('http://localhost:5000/api/employees', newEmployee, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setEmployees([...employees, res.data]);
+      let res;
+      if (isEditingEmployee) {
+        res = await axios.put(`http://localhost:5000/api/employees/${editingEmployeeId}`, formData, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        });
+        setEmployees(employees.map(emp => emp._id === editingEmployeeId ? res.data : emp));
+        setIsEditingEmployee(false);
+        setEditingEmployeeId(null);
+      } else {
+        res = await axios.post('http://localhost:5000/api/employees', formData, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        });
+        setEmployees([res.data, ...employees]); // Ajoute en premier
+      }
       setNewEmployee({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' });
+      setSelectedPhoto(null);
+      setSelectedPdf(null);
       await fetchStats(token);
     } catch (err) {
-      setError('Erreur lors de l\'ajout de l\'employé');
+      setError('Erreur lors de l\'opération sur l\'employé');
+    }
+  };
+
+  // Edition employé
+  const startEditingEmployee = (emp) => {
+    setNewEmployee({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email,
+      department: emp.department,
+      position: emp.position,
+      hireDate: new Date(emp.hireDate).toISOString().split('T')[0],
+    });
+    setSelectedPhoto(null); // Reset pour nouveau upload optionnel
+    setSelectedPdf(null);
+    setIsEditingEmployee(true);
+    setEditingEmployeeId(emp._id);
+  };
+
+  // Suppression employé
+  const handleDeleteEmployee = async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.delete(`http://localhost:5000/api/employees/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setEmployees(employees.filter(emp => emp._id !== id));
+      await fetchStats(token);
+    } catch (err) {
+      setError('Erreur lors de la suppression de l\'employé');
+    }
+  };
+
+  // Fonction pour télécharger le PDF directement
+  const handleDownloadPdf = async (pdfPath) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.get(`http://localhost:5000/${pdfPath}`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', pdfPath.split('/').pop());
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError('Erreur lors du téléchargement du PDF');
     }
   };
 
@@ -346,11 +335,11 @@ const Dashboard = () => {
     let totalCerts = 0;
     let expiredCerts = 0;
     let expiringSoon = 0;
-    if (user.role === 'admin' || user.role === 'manager') {
+    if (user?.role === 'admin' || user?.role === 'manager') {
       totalCerts = stats.totalCertificates;
       expiredCerts = stats.expiredCertificates;
       expiringSoon = 0; // Assumer que le backend peut être mis à jour pour fournir cette valeur
-    } else {
+    } else if (user) {
       totalCerts = user.certificates.length;
       expiredCerts = user.certificates.filter(cert => new Date(cert.expiryDate) < new Date()).length;
       expiringSoon = user.certificates.filter(cert => {
@@ -374,6 +363,7 @@ const Dashboard = () => {
 
   if (loading) return <div className="loading">Chargement...</div>;
   if (error) return <div className="error">{error}</div>;
+  if (!user) return <div className="error">Utilisateur non chargé. Veuillez vous reconnecter.</div>;
 
   // Tri des certificats par date d'expiration (chronologie : le plus proche en premier)
   const sortedCertificates = [...(user?.certificates || [])].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
@@ -462,28 +452,41 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Tableau récent */}
+            {/* Section Employés récents modifiée */}
             {(user.role === 'admin' || user.role === 'manager') ? (
               <div className="table-section form-paper">
                 <h3>Employés récents</h3>
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Email</th>
-                      <th>Poste</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.slice(0, 5).map((emp) => (
-                      <tr key={emp._id}>
-                        <td>{emp.firstName} {emp.lastName}</td>
-                        <td>{emp.email}</td>
-                        <td>{emp.position}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', overflow: 'hidden' }}>
+                  {employees.slice(0, 5).map((emp) => (
+                    <div key={emp._id} style={{ position: 'relative', height: '200px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', color: 'white' }}>
+                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Fond" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
+                      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaUser style={{ color: 'white' }} />
+                          <span>{emp.firstName} {emp.lastName}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaEnvelope style={{ color: 'white' }} />
+                          <span>{emp.email}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaUserTie style={{ color: 'white' }} />
+                          <span>{emp.position}</span>
+                        </div>
+                      </div>
+                      {emp.pdfPath && (
+                        <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '10px' }}>
+                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: 'white' }}>
+                            <FaEye />
+                          </a>
+                          <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white' }}>
+                            <FaDownload />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="table-section form-paper">
@@ -758,30 +761,61 @@ const Dashboard = () => {
         {currentSection === 'employees' && (user.role === 'admin' || user.role === 'manager') && (
           <div className="employees-section form-paper">
             <h2>Gérer les employés</h2>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Email</th>
-                  <th>Département</th>
-                  <th>Poste</th>
-                  <th>Date d'embauche</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp._id}>
-                    <td>{emp.firstName} {emp.lastName}</td>
-                    <td>{emp.email}</td>
-                    <td>{emp.department}</td>
-                    <td>{emp.position}</td>
-                    <td>{new Date(emp.hireDate).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <h3>Ajouter un employé</h3>
-            <form onSubmit={handleAddEmployee}>
+            <div className="employees-grid" style={{ overflowY: 'auto', maxHeight: '400px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+              {employees.map((emp) => (
+                <div className="employee-card" key={emp._id} style={{ display: 'flex', gap: '20px', border: '1px solid #ddd', padding: '15px', borderRadius: '12px', backgroundColor: '#fff', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', transition: 'transform 0.2s', cursor: 'pointer' }}>
+                  <div style={{ flex: '0 0 100px' }}>
+                    {emp.profilePhoto ? (
+                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Photo" style={{ width: '100px', height: '100px', borderRadius: '8px', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100px', height: '100px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Pas de photo</div>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                      <FaUser />
+                      <span>{emp.firstName} {emp.lastName}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                      <FaEnvelope />
+                      <span>{emp.email}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                      <FaBuilding />
+                      <span>{emp.department}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                      <FaBriefcase />
+                      <span>{emp.position}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                      <FaCalendarAlt />
+                      <span>{new Date(emp.hireDate).toLocaleDateString()}</span>
+                    </div>
+                    {emp.pdfPath && (
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
+                          <FaEye /> Consulter PDF
+                        </a>
+                        <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <FaDownload /> Télécharger PDF
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={() => startEditingEmployee(emp)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <FaEdit /> Modifier
+                    </button>
+                    <button onClick={() => handleDeleteEmployee(emp._id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: 'red' }}>
+                      <FaTrash /> Supprimer
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <h3>{isEditingEmployee ? 'Modifier l\'employé' : 'Ajouter un employé'}</h3>
+            <form onSubmit={handleEmployeeSubmit}>
               <input
                 type="text"
                 value={newEmployee.firstName}
@@ -823,7 +857,40 @@ const Dashboard = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
                 required
               />
-              <button type="submit" className="whatsapp-button">Ajouter</button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                <div style={{ flex: '1 1 200px' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="employee-photo"
+                    className="file-input"
+                    onChange={(e) => setSelectedPhoto(e.target.files[0])}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="employee-photo" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <FaImage /> Upload Photo
+                  </label>
+                </div>
+                <div style={{ flex: '1 1 200px' }}>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    id="employee-pdf"
+                    className="file-input"
+                    onChange={(e) => setSelectedPdf(e.target.files[0])}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="employee-pdf" className="upload-button" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <FaFilePdf /> Upload PDF/DOC
+                  </label>
+                </div>
+              </div>
+              <button type="submit" className="whatsapp-button">{isEditingEmployee ? 'Sauvegarder' : 'Ajouter'}</button>
+              {isEditingEmployee && (
+                <button type="button" onClick={() => { setIsEditingEmployee(false); setNewEmployee({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' }); setSelectedPhoto(null); setSelectedPdf(null); }} className="whatsapp-button" style={{ backgroundColor: 'gray', marginLeft: '10px' }}>
+                  Annuler
+                </button>
+              )}
             </form>
           </div>
         )}
