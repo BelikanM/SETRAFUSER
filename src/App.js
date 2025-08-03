@@ -1,8 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { UserProvider } from './context/UserContext';
-import NavigationBar from './components/NavigationBar'; // Changé en NavigationBar (assumé être FooterNav)
+import NavigationBar from './components/NavigationBar';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import People from './pages/People';
@@ -13,14 +13,21 @@ import News from './pages/News';
 import Followers from './pages/Followers';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Profile from './pages/Profile'; // Nouvelle importation pour la page Profile
+import Profile from './pages/Profile';
+import { CSSTransition, SwitchTransition } from 'react-transition-group';
 
-// Layout principal pour les pages avec NavigationBar persistant
 function MainLayout() {
+  const location = useLocation();
   return (
-    <div className="pb-5">
-      <Outlet /> {/* Le contenu de la page changera ici */}
-      <NavigationBar /> {/* Utilisation de NavigationBar au lieu de FooterNav */}
+    <div className="pb-5" style={{ position: 'relative', overflow: 'hidden', height: '100vh' }}>
+      <SwitchTransition>
+        <CSSTransition key={location.pathname} classNames="page" timeout={300}>
+          <div style={{ position: 'absolute', width: '100%', left: 0, top: 0, bottom: 0, overflowY: 'auto' }}>
+            <Outlet />
+          </div>
+        </CSSTransition>
+      </SwitchTransition>
+      <NavigationBar />
     </div>
   );
 }
@@ -31,7 +38,6 @@ function App() {
       <Router>
         <UserProvider>
           <Routes>
-            {/* Toutes les routes nested avec MainLayout pour persistance de la barre */}
             <Route element={<MainLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -41,9 +47,9 @@ function App() {
               <Route path="/gps" element={<GPS />} />
               <Route path="/news" element={<News />} />
               <Route path="/followers" element={<Followers />} />
-              <Route path="/profile" element={<Profile />} /> {/* Nouvelle route pour Profile */}
-              <Route path="/login" element={<Login />} /> {/* Déplacée ici pour avoir la barre */}
-              <Route path="/register" element={<Register />} /> {/* Déplacée ici pour avoir la barre */}
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
             </Route>
           </Routes>
         </UserProvider>

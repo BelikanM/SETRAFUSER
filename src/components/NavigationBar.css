@@ -103,3 +103,30 @@
     height: 35px;
   }
 }
+
+
+/* src/components/NavigationBar.css */
+/* Styles existants... */
+
+/* Ajout de styles pour transitions fluides des pages */
+.slide-enter {
+  opacity: 0;
+  transform: translateX(50%);
+}
+
+.slide-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 200ms, transform 200ms;
+}
+
+.slide-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-exit-active {
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 200ms, transform 200ms;
+}

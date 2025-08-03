@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -20,7 +20,7 @@ import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
-  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers, fetchData } = useContext(UserContext);
+  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Pour mobile
   const [currentSection, setCurrentSection] = useState('dashboard'); // Section actuelle
 
@@ -44,6 +44,10 @@ const Dashboard = () => {
   const [isEditingForm, setIsEditingForm] = useState(false);
   const [editingFormId, setEditingFormId] = useState(null);
 
+  // État pour modal PDF
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPdfPath, setSelectedPdfPath] = useState('');
+
   // État pour forcer le re-render en temps réel
   const [tick, setTick] = useState(0);
 
@@ -52,13 +56,6 @@ const Dashboard = () => {
       setEditProfile({ firstName: user.firstName, lastName: user.lastName });
     }
   }, [user]);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token && !user && !loading) {
-      fetchData(token);
-    }
-  }, [user, loading, fetchData]);
 
   // Fonction pour calculer le compte à rebours
   const calculateCountdown = (expiryDate) => {
@@ -482,28 +479,41 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Tableau récent */}
+            {/* Section Employés récents modifiée */}
             {(user.role === 'admin' || user.role === 'manager') ? (
               <div className="table-section form-paper">
                 <h3>Employés récents</h3>
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Email</th>
-                      <th>Poste</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.slice(0, 5).map((emp) => (
-                      <tr key={emp._id}>
-                        <td>{emp.firstName} {emp.lastName}</td>
-                        <td>{emp.email}</td>
-                        <td>{emp.position}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', overflow: 'hidden' }}>
+                  {employees.slice(0, 5).map((emp) => (
+                    <div key={emp._id} style={{ position: 'relative', height: '200px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', color: 'white' }}>
+                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Fond" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
+                      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaUser style={{ color: 'white' }} />
+                          <span>{emp.firstName} {emp.lastName}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaEnvelope style={{ color: 'white' }} />
+                          <span>{emp.email}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaUserTie style={{ color: 'white' }} />
+                          <span>{emp.position}</span>
+                        </div>
+                      </div>
+                      {emp.pdfPath && (
+                        <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '10px' }}>
+                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: 'white' }}>
+                            <FaEye />
+                          </a>
+                          <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white' }}>
+                            <FaDownload />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="table-section form-paper">
