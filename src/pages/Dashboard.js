@@ -1,6 +1,6 @@
 // src/pages/Dashboard.js
 import React, { useState, useEffect, useContext } from 'react';
-import { UserContext } from '../context/UserContext'; // New import
+import { UserContext } from '../context/UserContext';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,8 +21,8 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const Dashboard = () => {
   const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Pour mobile
-  const [currentSection, setCurrentSection] = useState('dashboard'); // Section actuelle
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentSection, setCurrentSection] = useState('dashboard');
 
   // États pour édition profil
   const [editProfile, setEditProfile] = useState({ firstName: '', lastName: '' });
@@ -33,10 +33,10 @@ const Dashboard = () => {
 
   // États pour employés
   const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' });
-  const [selectedPhoto, setSelectedPhoto] = useState(null); // Photo upload
-  const [selectedPdf, setSelectedPdf] = useState(null); // PDF/DOC upload
-  const [isEditingEmployee, setIsEditingEmployee] = useState(false); // Flag édition
-  const [editingEmployeeId, setEditingEmployeeId] = useState(null); // ID pour édition
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [selectedPdf, setSelectedPdf] = useState(null);
+  const [isEditingEmployee, setIsEditingEmployee] = useState(false);
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
 
   // États pour formulaires/blog
   const [newFormName, setNewFormName] = useState('');
@@ -74,7 +74,7 @@ const Dashboard = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((prev) => prev + 1);
-    }, 1000); // Mise à jour toutes les secondes pour un effet chronomètre
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -210,7 +210,7 @@ const Dashboard = () => {
         res = await axios.post('http://localhost:5000/api/employees', formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
-        setEmployees([res.data, ...employees]); // Ajoute en premier
+        setEmployees([res.data, ...employees]);
       }
       setNewEmployee({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' });
       setSelectedPhoto(null);
@@ -231,7 +231,7 @@ const Dashboard = () => {
       position: emp.position,
       hireDate: new Date(emp.hireDate).toISOString().split('T')[0],
     });
-    setSelectedPhoto(null); // Reset pour nouveau upload optionnel
+    setSelectedPhoto(null);
     setSelectedPdf(null);
     setIsEditingEmployee(true);
     setEditingEmployeeId(emp._id);
@@ -288,7 +288,7 @@ const Dashboard = () => {
         res = await axios.post('http://localhost:5000/api/forms', { name: newFormName, content: formContent }, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setForms([res.data, ...forms]); // Ajoute en premier
+        setForms([res.data, ...forms]);
       }
       setNewFormName('');
       setFormContent('');
@@ -345,7 +345,7 @@ const Dashboard = () => {
     }
   };
 
-  // Rejeter inscription (invalider carte professionnelle)
+  // Rejeter inscription
   const handleRejectUser = async (userId) => {
     const token = localStorage.getItem('token');
     try {
@@ -365,13 +365,13 @@ const Dashboard = () => {
     if (user?.role === 'admin' || user?.role === 'manager') {
       totalCerts = stats.totalCertificates;
       expiredCerts = stats.expiredCertificates;
-      expiringSoon = 0; // Assumer que le backend peut être mis à jour pour fournir cette valeur
+      expiringSoon = 0;
     } else if (user) {
       totalCerts = user.certificates.length;
       expiredCerts = user.certificates.filter(cert => new Date(cert.expiryDate) < new Date()).length;
       expiringSoon = user.certificates.filter(cert => {
         const diff = new Date(cert.expiryDate) - new Date();
-        return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000; // Dans les 30 prochains jours
+        return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000;
       }).length;
     }
     return {
@@ -392,7 +392,7 @@ const Dashboard = () => {
   if (error) return <div className="error">{error}</div>;
   if (!user) return <div className="error">Utilisateur non chargé. Veuillez vous reconnecter.</div>;
 
-  // Tri des certificats par date d'expiration (chronologie : le plus proche en premier)
+  // Tri des certificats par date d'expiration
   const sortedCertificates = [...(user?.certificates || [])].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
   // Classification des certificats
@@ -408,7 +408,6 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar navigation */}
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <ul>
           <li onClick={() => setCurrentSection('dashboard')} title="Dashboard"><FaHome /></li>
@@ -430,12 +429,10 @@ const Dashboard = () => {
         </ul>
       </div>
 
-      {/* Bouton toggle sidebar pour mobile */}
       <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
         ☰
       </button>
 
-      {/* Contenu principal basé sur la section */}
       <div className="main-content">
         {currentSection === 'dashboard' && (
           <>
@@ -444,7 +441,6 @@ const Dashboard = () => {
               <p>Rôle : {user.role}</p>
             </div>
 
-            {/* Widgets de stats */}
             <div className="widgets-grid">
               <div className="widget form-paper">
                 <h3>Statistiques</h3>
@@ -453,7 +449,7 @@ const Dashboard = () => {
                     <p>Employés totaux : {stats.totalEmployees}</p>
                     <p>Certificats totaux : {stats.totalCertificates}</p>
                     <p><FaClock /> Certificats expirés : {stats.expiredCertificates}</p>
-                    <p><FaClock /> Certificats expirant bientôt (30 jours) : {0 /* Assumer backend pour valeur globale */}</p>
+                    <p><FaClock /> Certificats expirant bientôt (30 jours) : {0}</p>
                   </>
                 ) : (
                   <>
@@ -479,34 +475,33 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Section Employés récents modifiée */}
             {(user.role === 'admin' || user.role === 'manager') ? (
               <div className="table-section form-paper">
                 <h3>Employés récents</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', overflow: 'hidden' }}>
                   {employees.slice(0, 5).map((emp) => (
-                    <div key={emp._id} style={{ position: 'relative', height: '200px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', color: 'white' }}>
+                    <div key={emp._id} style={{ position: 'relative', height: '200px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 8px rgba(0,0,0,0.2)', backgroundColor: '#fff', color: '#000' }}>
                       <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Fond" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
-                      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px', color: '#000' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaUser style={{ color: 'white' }} />
+                          <FaUser style={{ color: '#000' }} />
                           <span>{emp.firstName} {emp.lastName}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaEnvelope style={{ color: 'white' }} />
+                          <FaEnvelope style={{ color: '#000' }} />
                           <span>{emp.email}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FaUserTie style={{ color: 'white' }} />
+                          <FaUserTie style={{ color: '#000' }} />
                           <span>{emp.position}</span>
                         </div>
                       </div>
                       {emp.pdfPath && (
                         <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '10px' }}>
-                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: 'white' }}>
+                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                             <FaEye />
                           </a>
-                          <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white' }}>
+                          <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#000' }}>
                             <FaDownload />
                           </button>
                         </div>
@@ -520,27 +515,27 @@ const Dashboard = () => {
                 <h3>Mes certificats récents (triés par expiration proche)</h3>
                 <div className="certificates-grid">
                   {sortedCertificates.slice(0, 5).map((cert, index) => (
-                    <div className="certificate-card" key={index}>
+                    <div className="certificate-card" key={index} style={{ backgroundColor: '#fff', color: '#000' }}>
                       <h3>{cert.title}</h3>
                       <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                       <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
-                      <div className="countdown-box">
-                        <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                      <div className="countdown-box" style={{ backgroundColor: '#f9f9f9', color: '#000' }}>
+                        <p><FaClock /> Décompte : <span style={{ color: '#d32f2f' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                       </div>
                       {cert.imagePath && (
-                        <img 
-                          src={`http://localhost:5000/${cert.imagePath}`} 
-                          alt="Certificate Image" 
-                          className="cert-image" 
+                        <img
+                          src={`http://localhost:5000/${cert.imagePath}`}
+                          alt="Certificate Image"
+                          className="cert-image"
                           style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                         />
                       )}
                       {cert.filePath && (
                         <div className="pdf-actions">
-                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                             <FaEye /> Ouvrir
                           </a>
-                          <a href={`http://localhost:5000/${cert.filePath}`} download>
+                          <a href={`http://localhost:5000/${cert.filePath}`} download style={{ color: '#000' }}>
                             <FaDownload /> Télécharger
                           </a>
                         </div>
@@ -603,34 +598,34 @@ const Dashboard = () => {
             <h3>Expirés</h3>
             <div className="certificates-grid">
               {expiredCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#fff', color: '#000' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
-                  <div className="countdown-box">
-                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                  <div className="countdown-box" style={{ backgroundColor: '#f9f9f9', color: '#000' }}>
+                    <p><FaClock /> Décompte : <span style={{ color: '#d32f2f' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                   </div>
                   {cert.imagePath && (
-                    <img 
-                      src={`http://localhost:5000/${cert.imagePath}`} 
-                      alt="Certificate Image" 
-                      className="cert-image" 
+                    <img
+                      src={`http://localhost:5000/${cert.imagePath}`}
+                      alt="Certificate Image"
+                      className="cert-image"
                       style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ color: '#000' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
                   <div className="actions">
                     <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ backgroundColor: '#d32f2f' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
@@ -638,34 +633,34 @@ const Dashboard = () => {
             <h3>Expirant bientôt (dans 30 jours)</h3>
             <div className="certificates-grid">
               {expiringSoonCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#fff', color: '#000' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
-                  <div className="countdown-box">
-                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                  <div className="countdown-box" style={{ backgroundColor: '#f9f9f9', color: '#000' }}>
+                    <p><FaClock /> Décompte : <span style={{ color: '#d32f2f' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                   </div>
                   {cert.imagePath && (
-                    <img 
-                      src={`http://localhost:5000/${cert.imagePath}`} 
-                      alt="Certificate Image" 
-                      className="cert-image" 
+                    <img
+                      src={`http://localhost:5000/${cert.imagePath}`}
+                      alt="Certificate Image"
+                      className="cert-image"
                       style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ color: '#000' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
                   <div className="actions">
                     <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ backgroundColor: '#d32f2f' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
@@ -673,34 +668,34 @@ const Dashboard = () => {
             <h3>Valides</h3>
             <div className="certificates-grid">
               {validCerts.map((cert, index) => (
-                <div className="certificate-card" key={index}>
+                <div className="certificate-card" key={index} style={{ backgroundColor: '#fff', color: '#000' }}>
                   <h3>{cert.title}</h3>
                   <p>Date de début : {new Date(cert.creationDate).toLocaleDateString()}</p>
                   <p>Date de fin : {new Date(cert.expiryDate).toLocaleDateString()}</p>
-                  <div className="countdown-box">
-                    <p><FaClock /> Décompte : <span style={{ color: 'red' }}>{calculateCountdown(cert.expiryDate)}</span></p>
+                  <div className="countdown-box" style={{ backgroundColor: '#f9f9f9', color: '#000' }}>
+                    <p><FaClock /> Décompte : <span style={{ color: '#d32f2f' }}>{calculateCountdown(cert.expiryDate)}</span></p>
                   </div>
                   {cert.imagePath && (
-                    <img 
-                      src={`http://localhost:5000/${cert.imagePath}`} 
-                      alt="Certificate Image" 
-                      className="cert-image" 
+                    <img
+                      src={`http://localhost:5000/${cert.imagePath}`}
+                      alt="Certificate Image"
+                      className="cert-image"
                       style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`http://localhost:5000/${cert.filePath}`} download style={{ color: '#000' }}>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
                   )}
                   <div className="actions">
                     <button onClick={() => startEditingCertificate(index, cert)}>Modifier</button>
-                    <button onClick={() => handleDeleteCertificate(index)}>Supprimer</button>
+                    <button onClick={() => handleDeleteCertificate(index)} style={{ backgroundColor: '#d32f2f' }}>Supprimer</button>
                   </div>
                 </div>
               ))}
@@ -709,10 +704,10 @@ const Dashboard = () => {
               <h3>{editingCertIndex !== null ? 'Modifier le certificat' : 'Ajouter un certificat'}</h3>
               {user.profilePhoto && (
                 <div className="profile-circle">
-                  <img 
-                    src={`http://localhost:5000/${user.profilePhoto}`} 
-                    alt="Profile" 
-                    className="small-avatar" 
+                  <img
+                    src={`http://localhost:5000/${user.profilePhoto}`}
+                    alt="Profile"
+                    className="small-avatar"
                     style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block', borderRadius: '50%' }}
                   />
                 </div>
@@ -770,10 +765,10 @@ const Dashboard = () => {
                     {editingCertIndex !== null ? 'Sauvegarder' : 'Ajouter'}
                   </button>
                   {editingCertIndex !== null && (
-                    <button 
-                      type="button" 
-                      className="whatsapp-button" 
-                      style={{ flex: '1 1 100px' }}
+                    <button
+                      type="button"
+                      className="whatsapp-button"
+                      style={{ flex: '1 1 100px', backgroundColor: 'gray' }}
                       onClick={() => { setEditingCertIndex(null); setCertificateForm({ title: '', creationDate: '', expiryDate: '', file: null, image: null }); }}
                     >
                       Annuler
@@ -798,33 +793,33 @@ const Dashboard = () => {
                       <div style={{ width: '100px', height: '100px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Pas de photo</div>
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', color: '#000' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaUser />
                       <span>{emp.firstName} {emp.lastName}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaEnvelope />
                       <span>{emp.email}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaBuilding />
                       <span>{emp.department}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaBriefcase />
                       <span>{emp.position}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'blue' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaCalendarAlt />
                       <span>{new Date(emp.hireDate).toLocaleDateString()}</span>
                     </div>
                     {emp.pdfPath && (
                       <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                        <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
+                        <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000' }}>
                           <FaEye /> Consulter PDF
                         </a>
-                        <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <button onClick={() => handleDownloadPdf(emp.pdfPath)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#000' }}>
                           <FaDownload /> Télécharger PDF
                         </button>
                       </div>
@@ -834,7 +829,7 @@ const Dashboard = () => {
                     <button onClick={() => startEditingEmployee(emp)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <FaEdit /> Modifier
                     </button>
-                    <button onClick={() => handleDeleteEmployee(emp._id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: 'red' }}>
+                    <button onClick={() => handleDeleteEmployee(emp._id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#d32f2f' }}>
                       <FaTrash /> Supprimer
                     </button>
                   </div>
@@ -912,12 +907,24 @@ const Dashboard = () => {
                   </label>
                 </div>
               </div>
-              <button type="submit" className="whatsapp-button">{isEditingEmployee ? 'Sauvegarder' : 'Ajouter'}</button>
-              {isEditingEmployee && (
-                <button type="button" onClick={() => { setIsEditingEmployee(false); setNewEmployee({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' }); setSelectedPhoto(null); setSelectedPdf(null); }} className="whatsapp-button" style={{ backgroundColor: 'gray', marginLeft: '10px' }}>
-                  Annuler
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button type="submit" className="whatsapp-button">{isEditingEmployee ? 'Sauvegarder' : 'Ajouter'}</button>
+                {isEditingEmployee && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingEmployee(false);
+                      setNewEmployee({ firstName: '', lastName: '', email: '', department: '', position: '', hireDate: '' });
+                      setSelectedPhoto(null);
+                      setSelectedPdf(null);
+                    }}
+                    className="whatsapp-button"
+                    style={{ backgroundColor: 'gray' }}
+                  >
+                    Annuler
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         )}
@@ -925,14 +932,14 @@ const Dashboard = () => {
         {currentSection === 'forms' && (user.role === 'admin' || user.role === 'manager') && (
           <div className="forms-section form-paper">
             <h2>Gérer les articles de blog</h2>
-            <div className="forms-list" style={{ marginBottom: '20px' }}>
+            <div className="forms-list" style={{ marginBottom: '20px', backgroundColor: '#fff', color: '#000' }}>
               {forms.map((form) => (
-                <div key={form._id} style={{ border: '1px solid #ddd', padding: '15px', marginBottom: '10px', borderRadius: '8px' }}>
-                  <h4>{form.name}</h4>
-                  <div dangerouslySetInnerHTML={{ __html: form.content ? form.content.substring(0, 200) + '...' : 'Pas de contenu' }} />
+                <div key={form._id} style={{ border: '1px solid #ddd', padding: '15px', marginBottom: '10px', borderRadius: '8px', backgroundColor: '#fff', color: '#000' }}>
+                  <h4 style={{ color: '#000' }}>{form.name}</h4>
+                  <div dangerouslySetInnerHTML={{ __html: form.content ? form.content : 'Pas de contenu' }} style={{ color: '#000' }} />
                   <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                    <button onClick={() => startEditingForm(form)}><FaEdit /> Modifier</button>
-                    <button onClick={() => handleDeleteForm(form._id)} style={{ backgroundColor: 'red' }}><FaTrash /> Supprimer</button>
+                    <button onClick={() => startEditingForm(form)} style={{ backgroundColor: '#1976d2', color: '#fff' }}><FaEdit /> Modifier</button>
+                    <button onClick={() => handleDeleteForm(form._id)} style={{ backgroundColor: '#d32f2f', color: '#fff' }}><FaTrash /> Supprimer</button>
                   </div>
                 </div>
               ))}
@@ -945,28 +952,43 @@ const Dashboard = () => {
                 onChange={(e) => setNewFormName(e.target.value)}
                 placeholder="Titre de l'article"
                 required
+                style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
-              <ReactQuill 
+              <ReactQuill
                 value={formContent}
                 onChange={setFormContent}
                 modules={{
                   toolbar: [
                     [{ 'header': [1, 2, false] }],
                     ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-                    [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
                     ['link', 'image'],
                     ['clean']
                   ],
                 }}
                 formats={['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image']}
-                style={{ height: '300px', marginBottom: '20px' }}
+                style={{ height: '300px', marginBottom: '60px', backgroundColor: '#fff', color: '#000' }}
               />
-              <button type="submit" className="whatsapp-button">{isEditingForm ? 'Sauvegarder' : 'Publier'}</button>
-              {isEditingForm && (
-                <button type="button" onClick={() => { setIsEditingForm(false); setNewFormName(''); setFormContent(''); setEditingFormId(null); }} className="whatsapp-button" style={{ backgroundColor: 'gray', marginLeft: '10px' }}>
-                  Annuler
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '20px' }}>
+                <button type="submit" className="whatsapp-button" style={{ backgroundColor: '#25d366', color: '#fff' }}>
+                  {isEditingForm ? 'Sauvegarder' : 'Publier'}
                 </button>
-              )}
+                {isEditingForm && (
+                  <button
+                    type="button"
+                    className="whatsapp-button"
+                    style={{ backgroundColor: 'gray', color: '#fff' }}
+                    onClick={() => {
+                      setIsEditingForm(false);
+                      setNewFormName('');
+                      setFormContent('');
+                      setEditingFormId(null);
+                    }}
+                  >
+                    Annuler
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         )}
@@ -1018,19 +1040,19 @@ const Dashboard = () => {
             <h2>Valider ou invalider les cartes professionnelles (admins en attente)</h2>
             <div className="certificates-grid">
               {users.filter(u => u.role === 'admin' && !u.isApproved).map((u) => (
-                <div className="certificate-card" key={u._id}>
+                <div className="certificate-card" key={u._id} style={{ backgroundColor: '#fff', color: '#000' }}>
                   <h3>{u.firstName} {u.lastName} ({u.email})</h3>
                   <p>Carte professionnelle :</p>
                   {u.professionalCard && (
-                    <img 
-                      src={`http://localhost:5000/${u.professionalCard}`} 
-                      alt="Professional Card" 
+                    <img
+                      src={`http://localhost:5000/${u.professionalCard}`}
+                      alt="Professional Card"
                       style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
                     />
                   )}
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => handleApproveUser(u._id)} className="whatsapp-button">Valider</button>
-                    <button onClick={() => handleRejectUser(u._id)} className="whatsapp-button" style={{ backgroundColor: 'red' }}>Invalider</button>
+                    <button onClick={() => handleApproveUser(u._id)} className="whatsapp-button" style={{ backgroundColor: '#25d366' }}>Valider</button>
+                    <button onClick={() => handleRejectUser(u._id)} className="whatsapp-button" style={{ backgroundColor: '#d32f2f' }}>Invalider</button>
                   </div>
                 </div>
               ))}
