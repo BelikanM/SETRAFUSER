@@ -1,3 +1,449 @@
+/* src/pages/Dashboard.css */
+
+/* General container styles */
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.form-paper {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+/* Sidebar styles */
+.sidebar {
+  width: 60px;
+  background: #333;
+  transition: width 0.3s;
+}
+
+.sidebar.open {
+  width: 200px;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  padding: 15px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.sidebar-toggle {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+}
+
+/* Widgets grid */
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Employee card styles */
+.employees-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.employee-card {
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transition: transform 0.2s;
+  display: flex;
+  flex-direction: column;
+  height: 300px; /* Fixed height for consistency */
+}
+
+.employee-card:hover {
+  transform: translateY(-5px);
+}
+
+.employee-card-image-container {
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+}
+
+.employee-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.employee-card-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.employee-card-content {
+  padding: 15px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.employee-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+}
+
+/* Certificate card styles */
+.certificates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.certificate-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  max-height: 400px; /* Limit card height */
+}
+
+.cert-image {
+  width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  display: block;
+  margin: 10px 0;
+}
+
+.countdown-box {
+  background: #f9f9f9;
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.countdown-text {
+  color: #d32f2f;
+}
+
+/* Form card (blog) styles */
+.forms-list {
+  margin-bottom: 20px;
+}
+
+.form-card {
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: #fff;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.blog-content {
+  color: #000;
+  font-size: 14px;
+}
+
+.blog-content img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  display: block;
+  margin: 10px auto;
+  border-radius: 4px;
+}
+
+/* Profile section */
+.avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+}
+
+.small-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+/* Approval section */
+.professional-card-image {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  display: block;
+  margin: 10px 0;
+}
+
+/* Form elements */
+.input-field {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.file-input-container {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.file-input {
+  display: none;
+}
+
+.upload-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  background: #1976d2;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-button {
+  padding: 10px 20px;
+  background: #25d366;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-button {
+  background: gray;
+}
+
+.edit-button {
+  background: #1976d2;
+  color: #fff;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.delete-button {
+  background: #d32f2f;
+  color: #fff;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.reject-button {
+  background: #d32f2f;
+}
+
+.download-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #000;
+}
+
+.pdf-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pdf-actions a {
+  color: #000;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Table styles */
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 10px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.certificate-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+/* Quill editor */
+.quill-editor {
+  height: 300px;
+  margin-bottom: 60px;
+  background: #fff;
+  color: #000;
+}
+
+.quill-editor img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  display: block;
+  margin: 10px auto;
+  border-radius: 4px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 10px;
+  }
+
+  .widgets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employees-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .certificates-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-card {
+    height: auto;
+    min-height: 250px;
+  }
+
+  .employee-card-image-container {
+    height: 100px;
+  }
+
+  .certificate-card {
+    max-height: none;
+  }
+
+  .dashboard-table {
+    min-width: 100%;
+  }
+
+  .form-card {
+    max-height: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 50px;
+  }
+
+  .sidebar.open {
+    width: 150px;
+  }
+
+  .file-input-container {
+    flex-direction: column;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .employee-card-image-container {
+    height: 80px;
+  }
+
+  .employee-info {
+    font-size: 12px;
+  }
+
+  .cert-image,
+  .professional-card-image,
+  .blog-content img,
+  .quill-editor img {
+    max-height: 150px;
+  }
+}
+
 /* src/EmployeeCertificates.css */
 
 :root {
