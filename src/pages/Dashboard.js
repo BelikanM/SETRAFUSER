@@ -967,7 +967,7 @@ const Dashboard = () => {
                   <h4>{form.name}</h4>
                   <p>Créé le : {new Date(form.createdAt).toLocaleDateString()}</p>
                   <div className="blog-content" dangerouslySetInnerHTML={{ __html: form.content ? form.content : 'Pas de contenu' }} />
-                  <div className="actions">
+                  <div className="actions" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button onClick={() => startEditingForm(form)} className="edit-button"><FaEdit /> Modifier</button>
                     <button onClick={() => handleDeleteForm(form._id)} className="delete-button"><FaTrash /> Supprimer</button>
                   </div>
