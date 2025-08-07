@@ -1,36 +1,16 @@
-// src/pages/Blog.js
-import React, { useState, useEffect } from 'react';
+// src/pages/News.js
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import './Blog.css'; // Fichier CSS dédié pour la page blog
+import './News.css'; // si tu as un fichier CSS pour styliser
+import { useDataCache } from '../context/DataCacheContext';
 
-const Blog = () => {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
+const News = () => {
+  const { getData, setData } = useDataCache();
+  const [articles, setArticles] = useState(getData('newsArticles') || []);
+  const [loading, setLoading] = useState(!getData('newsArticles'));
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('Vous devez être connecté pour accéder aux articles.');
-        }
-        const res = await axios.get('http://localhost:5000/api/forms', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        // Trier les articles par date de création (du plus récent au plus ancien)
-        const sortedArticles = res.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setArticles(sortedArticles);
-        setLoading(false);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Erreur lors du chargement des articles. Vérifiez que vous avez les permissions nécessaires.');
-        setLoading(false);
-      }
-    };
-
-    fetchArticles();
-  }, []);
-
+  // Pour appliquer un style spécifique aux images HTML des articles
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -47,12 +27,37 @@ const Blog = () => {
     return () => document.head.removeChild(style);
   }, []);
 
+  useEffect(() => {
+    if (getData('newsArticles')) return; // Déjà en cache, pas besoin de fetch
+
+    const fetchArticles = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Vous devez être connecté pour accéder aux articles.');
+
+        const res = await axios.get('http://localhost:5000/api/forms', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const sorted = res.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setArticles(sorted);
+        setData('newsArticles', sorted); // Stocker en cache
+      } catch (err) {
+        setError(err.response?.data?.message || 'Erreur lors du chargement des articles.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchArticles();
+  }, []);
+
   if (loading) return <div className="loading">Chargement des articles...</div>;
   if (error) return <div className="error">{error}</div>;
 
   return (
-    <div className="blog-container">
-      <h1>Articles du Blog</h1>
+    <div className="news-container">
+      <h1>Articles d'actualité</h1>
       {articles.length === 0 ? (
         <p>Aucun article disponible pour le moment.</p>
       ) : (
@@ -68,4 +73,4 @@ const Blog = () => {
   );
 };
 
-export default Blog;
+export default News;
