@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt, FaTimes } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt, FaTimes, FaSearch } from 'react-icons/fa';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -43,6 +43,7 @@ const Dashboard = () => {
   const [formContent, setFormContent] = useState('');
   const [isEditingForm, setIsEditingForm] = useState(false);
   const [editingFormId, setEditingFormId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // État pour modal PDF
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -961,8 +962,18 @@ const Dashboard = () => {
         {currentSection === 'forms' && (user.role === 'admin' || user.role === 'manager') && (
           <div className="forms-section form-paper">
             <h2>Gérer les articles de blog</h2>
+            <div className="search-container">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Rechercher un article par titre..."
+                className="input-field search-bar"
+              />
+              <FaSearch className="search-icon" />
+            </div>
             <div className="forms-list">
-              {forms.map((form) => (
+              {forms.filter(form => form.name.toLowerCase().includes(searchQuery.toLowerCase())).map((form) => (
                 <div key={form._id} className="form-card">
                   <h4>{form.name}</h4>
                   <p>Créé le : {new Date(form.createdAt).toLocaleDateString()}</p>
