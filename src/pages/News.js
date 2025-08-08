@@ -1,76 +1,101 @@
-// src/pages/News.js
-import React, { useEffect, useState } from 'react';
+// src/pages/Blog.js
+import React, { useState, useEffect, useContext } from 'react';
+import { UserContext } from '../context/UserContext';
+import { FaSearch, FaCalendarAlt } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './News.css'; // si tu as un fichier CSS pour styliser
-import { useDataCache } from '../context/DataCacheContext';
+import './Blog.css'; // Fichier CSS dédié pour la page blog (à créer avec des styles modernes)
 
-const News = () => {
-  const { getData, setData } = useDataCache();
-  const [articles, setArticles] = useState(getData('newsArticles') || []);
-  const [loading, setLoading] = useState(!getData('newsArticles'));
-  const [error, setError] = useState(null);
-
-  // Pour appliquer un style spécifique aux images HTML des articles
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .article-content img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-        border-radius: 5px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+const Blog = () => {
+  const { forms, setForms, loading, error, setError } = useContext(UserContext);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredArticles, setFilteredArticles] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (getData('newsArticles')) return; // Déjà en cache, pas besoin de fetch
-
     const fetchArticles = async () => {
+      const token = localStorage.getItem('token');
       try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('Vous devez être connecté pour accéder aux articles.');
-
         const res = await axios.get('http://localhost:5000/api/forms', {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        const sorted = res.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setArticles(sorted);
-        setData('newsArticles', sorted); // Stocker en cache
+        setForms(res.data);
       } catch (err) {
-        setError(err.response?.data?.message || 'Erreur lors du chargement des articles.');
-      } finally {
-        setLoading(false);
+        setError('Erreur lors de la récupération des articles');
       }
     };
 
-    fetchArticles();
-  }, []);
+    if (!forms.length) {
+      fetchArticles();
+    }
+  }, [forms, setForms, setError]);
+
+  useEffect(() => {
+    const filtered = forms.filter(article => article.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    setFilteredArticles(filtered);
+  }, [searchQuery, forms]);
+
+  const getExcerpt = (content) => {
+    const text = content.replace(/<[^>]*>/g, ''); // Supprimer les tags HTML
+    return text.length > 150 ? `${text.substring(0, 150)}...` : text;
+  };
+
+  const getFeaturedImage = (content) => {
+    const match = content.match(/<img [^>]*src="([^"]*)"[^>]*>/);
+    return match ? match[1] : null; // Retourne la première image trouvée dans le contenu
+  };
 
   if (loading) return <div className="loading">Chargement des articles...</div>;
   if (error) return <div className="error">{error}</div>;
 
   return (
-    <div className="news-container">
-      <h1>Articles d'actualité</h1>
-      {articles.length === 0 ? (
-        <p>Aucun article disponible pour le moment.</p>
-      ) : (
-        articles.map((article) => (
-          <div key={article._id} className="article-card">
-            <h2>{article.name}</h2>
-            <p className="article-date">Publié le : {new Date(article.createdAt).toLocaleString()}</p>
-            <div className="article-content" dangerouslySetInnerHTML={{ __html: article.content }} />
-          </div>
-        ))
-      )}
+    <div className="blog-container">
+      <header className="blog-header">
+        <h1>Notre Blog</h1>
+        <div className="search-container">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un article..."
+            className="search-bar"
+          />
+          <FaSearch className="search-icon" />
+        </div>
+      </header>
+
+      <div className="articles-grid">
+        {filteredArticles.length > 0 ? (
+          filteredArticles.map((article) => {
+            const featuredImage = getFeaturedImage(article.content);
+            return (
+              <div key={article._id} className="article-card">
+                {featuredImage && (
+                  <img
+                    src={featuredImage}
+                    alt={article.name}
+                    className="article-image"
+                    loading="lazy" // Lazy loading pour optimisation dynamique
+                    style={{ maxWidth: '100%', height: 'auto' }} // Pour ne pas dépasser l'écran et rendre responsive
+                  />
+                )}
+                <div className="article-content">
+                  <h2 className="article-title">{article.name}</h2>
+                  <p className="article-date">
+                    <FaCalendarAlt /> Publié le {new Date(article.createdAt).toLocaleDateString()}
+                  </p>
+                  <p className="article-excerpt">{getExcerpt(article.content)}</p>
+                  <button className="read-more-button" onClick={() => navigate(`/blog/${article._id}`)}>Lire l'article complet</button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <p>Aucun article trouvé.</p>
+        )}
+      </div>
     </div>
   );
 };
 
-export default News;
+export default Blog;
