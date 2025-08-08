@@ -49,7 +49,7 @@ const Blog = () => {
   if (error) return <div className="error">{error}</div>;
 
   return (
-    <div className="blog-container">
+    <div className="blog-container" style={{ paddingBottom: '80px' }}> {/* Ajout de padding-bottom pour éviter le chevauchement avec le footer */}
       <header className="blog-header">
         <h1>Notre Blog</h1>
         <div className="search-container">
