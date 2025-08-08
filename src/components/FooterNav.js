@@ -20,7 +20,7 @@ const NavigationBar = () => {
     { path: '/dashboard', label: 'Dashboard', icon: <MdDashboard /> },
     { path: '/data', label: 'Data', icon: <MdDataUsage /> },
     { path: '/engins', label: 'Engins', icon: <FaHardHat /> },
-    { path: '/followers', label: 'Followers', icon: <MdPeople /> },
+    { path: '/followers', label: 'Groupe', icon: <MdPeople /> },
     { path: '/gps', label: 'GPS', icon: <MdGpsFixed /> },
     { path: '/', label: 'Home', icon: <MdHome /> }, // Correction: Changé en / pour matcher la route racine
     { path: '/news', label: 'News', icon: <MdRssFeed /> },

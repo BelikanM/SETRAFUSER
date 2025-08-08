@@ -1,3 +1,4 @@
+// src/pages/Login.js
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../context/UserContext'; // Import UserContext
@@ -7,7 +8,7 @@ import './Login.css'; // Assume same as Register CSS
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setToken } = useContext(UserContext); // Use setToken from context
+  const { setToken, setUser } = useContext(UserContext); // Use setToken and setUser from context
   const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -52,11 +53,18 @@ const Login = () => {
     // Procéder à la connexion
     try {
       const res = await axios.post('http://localhost:5000/api/login', { email, password });
-      localStorage.setItem('token', res.data.token); // Stocker le token JWT
-      setToken(res.data.token); // Mettre à jour le context immédiatement pour chargement dynamique
+      const token = res.data.token;
+      localStorage.setItem('token', token); // Stocker le token JWT
+      setToken(token); // Mettre à jour le context immédiatement
+
+      // Récupérer les données utilisateur pour pré-charger le contexte et éviter le chargement dans Dashboard
+      const userRes = await axios.get('http://localhost:5000/api/user/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(userRes.data); // Mettre à jour l'utilisateur dans le contexte
+
       localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
-      setSuccess('Connexion réussie !');
-      setTimeout(() => navigate('/dashboard'), 2000); // Rediriger vers le dashboard (à adapter)
+      navigate('/dashboard'); // Rediriger immédiatement vers le dashboard de manière fluide
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setShowCodeInput(true);
