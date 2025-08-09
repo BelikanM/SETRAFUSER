@@ -1,5 +1,5 @@
 // src/pages/Dashboard.js
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { UserContext } from '../context/UserContext';
 import {
   Chart as ChartJS,
@@ -50,9 +50,22 @@ const Dashboard = () => {
   const [selectedPdfPath, setSelectedPdfPath] = useState('');
 
   // État pour forcer le re-render en temps réel
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
 
   const quillRef = useRef();
+
+  // Configuration mémorisée pour ReactQuill
+  const modules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }), []);
+
+  const formats = ['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image'];
 
   useEffect(() => {
     if (user) {
@@ -73,13 +86,15 @@ const Dashboard = () => {
     return `${days} jours, ${hours} heures, ${minutes} minutes, ${seconds} secondes restantes`;
   };
 
-  // Mise à jour en temps réel pour les comptes à rebours
+  // Mise à jour en temps réel pour les comptes à rebours (seulement dans les sections nécessaires)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (currentSection === 'dashboard' || currentSection === 'certificates') {
+      const interval = setInterval(() => {
+        setTick((prev) => prev + 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [currentSection]);
 
   // Mise à jour photo profil
   const handlePhotoUpdate = async (e) => {
@@ -277,6 +292,7 @@ const Dashboard = () => {
   // Ajout/Edition formulaire (blog)
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    console.log('Soumission du formulaire/blog :', { name: newFormName, content: formContent }); // Log frontend pour debug
     const token = localStorage.getItem('token');
     try {
       let res;
@@ -295,13 +311,16 @@ const Dashboard = () => {
       }
       setNewFormName('');
       setFormContent('');
+      console.log('Formulaire/blog sauvegardé avec succès'); // Log frontend pour debug
     } catch (err) {
       setError('Erreur lors de l\'opération sur le formulaire');
+      console.error('Erreur lors de la soumission du formulaire/blog :', err); // Log frontend pour debug
     }
   };
 
   // Edition formulaire
   const startEditingForm = (form) => {
+    console.log('Édition d\'un formulaire/blog existant :', form); // Log frontend pour debug
     setNewFormName(form.name);
     setFormContent(form.content || '');
     setIsEditingForm(true);
@@ -560,7 +579,7 @@ const Dashboard = () => {
                       {cert.imagePath && (
                         <img
                           src={`http://localhost:5000/${cert.imagePath}`}
-                          alt="Certificate Image"
+                          alt={`Certificat ${cert.title}`}
                           className="cert-image"
                         />
                       )}
@@ -642,7 +661,7 @@ const Dashboard = () => {
                   {cert.imagePath && (
                     <img
                       src={`http://localhost:5000/${cert.imagePath}`}
-                      alt="Certificate Image"
+                      alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
@@ -676,7 +695,7 @@ const Dashboard = () => {
                   {cert.imagePath && (
                     <img
                       src={`http://localhost:5000/${cert.imagePath}`}
-                      alt="Certificate Image"
+                      alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
@@ -710,7 +729,7 @@ const Dashboard = () => {
                   {cert.imagePath && (
                     <img
                       src={`http://localhost:5000/${cert.imagePath}`}
-                      alt="Certificate Image"
+                      alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
@@ -999,16 +1018,8 @@ const Dashboard = () => {
                 ref={quillRef}
                 value={formContent}
                 onChange={setFormContent}
-                modules={{
-                  toolbar: [
-                    [{ 'header': [1, 2, false] }],
-                    ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
-                    ['link', 'image'],
-                    ['clean']
-                  ],
-                }}
-                formats={['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image']}
+                modules={modules}
+                formats={formats}
                 className="quill-editor"
               />
               <div className="form-actions">
@@ -1087,7 +1098,7 @@ const Dashboard = () => {
                   {u.professionalCard && (
                     <img
                       src={`http://localhost:5000/${u.professionalCard}`}
-                      alt="Professional Card"
+                      alt="Carte professionnelle"
                       className="professional-card-image"
                     />
                   )}
