@@ -69,4 +69,19 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Any other custom service worker logic can go here.
+// Custom service worker logic for push notifications
+self.addEventListener('push', (event) => {
+  const data = event.data.json();
+  const options = {
+    body: data.body,
+    icon: data.icon || '/icon.png', // Remplace par ton icône d'app si disponible (ajoute-la dans public/)
+    data: data.data,
+  };
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data.url || '/'; // Ouvre l'URL de l'article ou la page d'accueil par défaut
+  event.waitUntil(clients.openWindow(url));
+});

@@ -1,4 +1,3 @@
-// src/pages/Dashboard.js
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { UserContext } from '../context/UserContext';
 import {
@@ -95,6 +94,41 @@ const Dashboard = () => {
       return () => clearInterval(interval);
     }
   }, [currentSection]);
+
+  // Intégration des notifications push (abonnement après chargement de l'utilisateur)
+  useEffect(() => {
+    if (user && 'serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then((registration) => {
+          return Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+              return registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array('BFXT9xapyauApeUkChO8rMsl3lUA23ndfiYih724AeNoof7NtqO5h1OlpAINwmMcFYAxUKrnCLFMN8VV8Sk3Bgg'), // Clé VAPID publique
+              }).then((subscription) => {
+                const token = localStorage.getItem('token');
+                return axios.post('http://localhost:5000/api/subscribe-push', subscription, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+              }).catch((err) => console.error('Erreur lors de l\'abonnement push:', err));
+            }
+          });
+        })
+        .catch((err) => console.error('Erreur d\'enregistrement du service worker:', err));
+    }
+  }, [user]);
+
+  // Fonction helper pour convertir la clé VAPID en Uint8Array
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
 
   // Mise à jour photo profil
   const handlePhotoUpdate = async (e) => {
