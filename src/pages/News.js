@@ -48,7 +48,7 @@ const News = () => {
         Bienvenue, {user.firstName} {user.lastName} ({user.role}).  
         Les articles s’actualisent automatiquement.
       </p>
-      <div className="articles-feed">
+      <div className="articles-feed" style={{ paddingBottom: '80px' }}>
         {articles.length === 0 ? (
           <p>Aucun article disponible pour le moment.</p>
         ) : (

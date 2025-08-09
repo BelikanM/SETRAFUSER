@@ -60,32 +60,49 @@
   max-height: none;
 }
 
-/* Bouton dérouler */
+/* Amélioration du bouton dérouler */
 .expand-button {
   border: none;
   padding: 8px 14px;
   border-radius: 6px;
   margin-top: 10px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.3s ease;
+  font-size: 0.95rem;           /* Un peu plus grand pour meilleure lisibilité */
+  font-weight: 600;             /* Texte plus gras */
   color: white;
+  background-color: #6c757d;    /* Gris par défaut */
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15); /* Ombre légère pour détacher */
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  -webkit-font-smoothing: antialiased; /* améliore le rendu texte sur Chrome/Safari */
+  -moz-osx-font-smoothing: grayscale;  /* idem pour Firefox Mac */
+  text-shadow: 0 0 1px rgba(0,0,0,0.3); /* léger contour sombre sur texte */
 }
 
-.expand-button.expand {
-  background-color: #6c757d; /* Gris pour "Dérouler" */
-}
-
-.expand-button.expand:hover {
+/* Hover */
+.expand-button:hover {
   background-color: #5a6268;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
+/* Classe dérouler */
+.expand-button.expand {
+  background-color: #6c757d; /* Gris */
+}
+
+/* Classe réduire */
 .expand-button.reduce {
-  background-color: #28a745; /* Vert pour "Réduire" */
+  background-color: #28a745; /* Vert */
 }
 
 .expand-button.reduce:hover {
   background-color: #218838;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .expand-button {
+    width: 100%;
+  }
 }
 
 /* Responsive */
