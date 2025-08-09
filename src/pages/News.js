@@ -1,101 +1,84 @@
-// src/pages/Blog.js
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { UserContext } from '../context/UserContext';
-import { FaSearch, FaCalendarAlt } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import './Blog.css'; // Fichier CSS dédié pour la page blog (à créer avec des styles modernes)
+import 'react-quill/dist/quill.snow.css';
+import './News.css';
 
-const Blog = () => {
-  const { forms, setForms, loading, error, setError } = useContext(UserContext);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredArticles, setFilteredArticles] = useState([]);
-  const navigate = useNavigate();
+const fetchArticles = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('Token non trouvé. Veuillez vous reconnecter.');
 
-  useEffect(() => {
-    const fetchArticles = async () => {
-      const token = localStorage.getItem('token');
-      try {
-        const res = await axios.get('http://localhost:5000/api/forms', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setForms(res.data);
-      } catch (err) {
-        setError('Erreur lors de la récupération des articles');
-      }
-    };
+  const res = await axios.get('http://localhost:5000/api/forms', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
-    if (!forms.length) {
-      fetchArticles();
-    }
-  }, [forms, setForms, setError]);
+  return res.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+};
 
-  useEffect(() => {
-    const filtered = forms.filter(article => article.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    setFilteredArticles(filtered);
-  }, [searchQuery, forms]);
+const News = () => {
+  const { user } = useContext(UserContext);
+  const [expanded, setExpanded] = useState({});
 
-  const getExcerpt = (content) => {
-    const text = content.replace(/<[^>]*>/g, ''); // Supprimer les tags HTML
-    return text.length > 150 ? `${text.substring(0, 150)}...` : text;
+  const { data: articles = [], isLoading, isError, error } = useQuery({
+    queryKey: ['news'],
+    queryFn: fetchArticles,
+    refetchInterval: 10000, // Mise à jour toutes les 10 secondes
+    refetchOnWindowFocus: true, // Rafraîchissement discret au retour sur la page
+  });
+
+  const toggleExpand = (id) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const getFeaturedImage = (content) => {
-    const match = content.match(/<img [^>]*src="([^"]*)"[^>]*>/);
-    return match ? match[1] : null; // Retourne la première image trouvée dans le contenu
-  };
-
-  if (loading) return <div className="loading">Chargement des articles...</div>;
-  if (error) return <div className="error">{error}</div>;
+  if (isLoading && articles.length === 0) {
+    return <div className="loading">Chargement des articles...</div>;
+  }
+  if (isError) {
+    return <div className="error">{error.message}</div>;
+  }
+  if (!user) {
+    return <div className="error">Utilisateur non chargé. Veuillez vous reconnecter.</div>;
+  }
 
   return (
-    <div className="blog-container" style={{ paddingBottom: '80px' }}> {/* Ajout de padding-bottom pour éviter le chevauchement avec le footer */}
-      <header className="blog-header">
-        <h1>Notre Blog</h1>
-        <div className="search-container">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher un article..."
-            className="search-bar"
-          />
-          <FaSearch className="search-icon" />
-        </div>
-      </header>
-
-      <div className="articles-grid">
-        {filteredArticles.length > 0 ? (
-          filteredArticles.map((article) => {
-            const featuredImage = getFeaturedImage(article.content);
+    <div className="news-container">
+      <h1>Flux d'actualités</h1>
+      <p>
+        Bienvenue, {user.firstName} {user.lastName} ({user.role}).  
+        Les articles s’actualisent automatiquement.
+      </p>
+      <div className="articles-feed">
+        {articles.length === 0 ? (
+          <p>Aucun article disponible pour le moment.</p>
+        ) : (
+          articles.map((article) => {
+            const isLong = article.content.length > 1000;
             return (
               <div key={article._id} className="article-card">
-                {featuredImage && (
-                  <img
-                    src={featuredImage}
-                    alt={article.name}
-                    className="article-image"
-                    loading="lazy" // Lazy loading pour optimisation dynamique
-                    style={{ maxWidth: '100%', height: 'auto' }} // Pour ne pas dépasser l'écran et rendre responsive
-                  />
+                <h2>{article.name}</h2>
+                <p className="article-date">
+                  Publié le : {new Date(article.createdAt).toLocaleDateString()}
+                </p>
+                <div
+                  className={`article-content ${expanded[article._id] ? 'expanded' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: article.content }}
+                ></div>
+                {isLong && (
+                  <button
+                    className="expand-button"
+                    onClick={() => toggleExpand(article._id)}
+                  >
+                    {expanded[article._id] ? 'Réduire' : 'Dérouler le reste'}
+                  </button>
                 )}
-                <div className="article-content">
-                  <h2 className="article-title">{article.name}</h2>
-                  <p className="article-date">
-                    <FaCalendarAlt /> Publié le {new Date(article.createdAt).toLocaleDateString()}
-                  </p>
-                  <p className="article-excerpt">{getExcerpt(article.content)}</p>
-                  <button className="read-more-button" onClick={() => navigate(`/blog/${article._id}`)}>Lire l'article complet</button>
-                </div>
               </div>
             );
           })
-        ) : (
-          <p>Aucun article trouvé.</p>
         )}
       </div>
     </div>
   );
 };
 
-export default Blog;
+export default News;

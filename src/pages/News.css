@@ -1,65 +1,104 @@
-/* src/pages/News.css */
-
+/* Conteneur principal */
 .news-container {
-  max-width: 800px;
-  margin: 0 auto;
   padding: 20px;
-  background-color: #f9f9f9;
+  max-width: 1000px;
+  margin: auto;
+}
+
+/* Barre de recherche */
+.search-bar {
+  width: 100%;
+  padding: 10px;
+  margin: 15px 0;
+  font-size: 1rem;
   border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #ccc;
+  outline: none;
+  transition: 0.3s ease;
 }
 
-h1 {
-  text-align: center;
-  color: #333;
-  margin-bottom: 20px;
+.search-bar:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.4);
 }
 
+/* Carte d'article */
 .article-card {
-  background-color: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 15px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
   margin-bottom: 20px;
-  transition: box-shadow 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
 }
 
-.article-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+/* Images dans le contenu */
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 10px auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.article-card h2 {
-  color: #007bff;
-  margin-bottom: 10px;
+.article-content img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
 }
 
-.article-date {
-  font-size: 0.9em;
-  color: #666;
-  margin-bottom: 15px;
-}
-
+/* Texte */
 .article-content {
+  font-size: 1rem;
   line-height: 1.6;
-  color: #444;
+  color: #333;
+  overflow-wrap: break-word;
 }
 
-.article-content p {
-  margin-bottom: 10px;
+.article-content.expanded {
+  max-height: none;
 }
 
-.article-content a {
-  color: #007bff;
-  text-decoration: none;
+/* Bouton dérouler */
+.expand-button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin-top: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  color: white;
 }
 
-.article-content a:hover {
-  text-decoration: underline;
+.expand-button.expand {
+  background-color: #6c757d; /* Gris pour "Dérouler" */
 }
 
-.loading, .error {
-  text-align: center;
-  font-size: 1.2em;
-  color: #ff0000;
-  margin: 20px 0;
+.expand-button.expand:hover {
+  background-color: #5a6268;
+}
+
+.expand-button.reduce {
+  background-color: #28a745; /* Vert pour "Réduire" */
+}
+
+.expand-button.reduce:hover {
+  background-color: #218838;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .news-container {
+    padding: 10px;
+  }
+
+  .article-card {
+    padding: 12px;
+  }
+
+  .expand-button {
+    width: 100%;
+  }
 }

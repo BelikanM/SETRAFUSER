@@ -1,11 +1,10 @@
-// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { UserProvider } from './context/UserContext';
 import { DataCacheProvider } from './context/DataCacheContext';
 
-import MainLayout from './MainLayout'; // ou './layouts/MainLayout' selon ton dossier
+import MainLayout from './MainLayout';
 
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -13,7 +12,8 @@ import People from './pages/People';
 import Data from './pages/Data';
 import Engins from './pages/Engins';
 import GPS from './pages/GPS';
-import News from './pages/News'; // ✅ ici on utilise News, pas Blog
+import News from './pages/News';
+import NewsDetail from './pages/NewsDetail';
 import Followers from './pages/Followers';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -33,7 +33,8 @@ const App = () => {
                 <Route path="/data" element={<Data />} />
                 <Route path="/engins" element={<Engins />} />
                 <Route path="/gps" element={<GPS />} />
-                <Route path="/news" element={<News />} /> {/* ✅ ici aussi */}
+                <Route path="/news" element={<News />} />
+                <Route path="/news/:id" element={<NewsDetail />} />
                 <Route path="/followers" element={<Followers />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/login" element={<Login />} />
