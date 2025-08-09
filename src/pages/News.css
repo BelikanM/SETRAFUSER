@@ -1,3 +1,158 @@
+.article-title {
+  font-size: 1.4rem;
+  font-weight: 700; /* Gras épais */
+  color: #000; /* Noir pur */
+  margin: 8px 0 10px 0; /* espace réduit sous l'image */
+  text-align: left; /* ou center si tu veux centrer le titre */
+}
+.article-image-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* ou center pour centrer le titre */
+}
+
+.article-title {
+  font-size: 1.4rem;
+  font-weight: 700; /* gras renforcé */
+  color: #000; /* noir pur */
+  margin: 10px 15px 5px 15px;
+  line-height: 1.3;
+}
+
+.article-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.article-image-wrapper {
+  width: 100%;
+  max-height: 220px;
+  overflow: hidden;
+}
+
+.article-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.article-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 10px 15px 5px 15px; /* moins d'espace */
+  line-height: 1.3;
+}
+
+.article-date {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0 15px 10px 15px; /* espace réduit */
+}
+
+.article-content {
+  padding: 0 15px 10px 15px; /* pas d'espace vide au-dessus */
+}
+
+.expand-button {
+  display: block;
+  margin: 8px auto 15px auto;
+  background-color: #007bff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+}
+
+.expand-button:hover {
+  background-color: #0056b3;
+}
+
+
+.article-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.article-image-wrapper {
+  width: 100%;
+  max-height: 220px;
+  overflow: hidden;
+}
+
+.article-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.article-content {
+  padding: 15px;
+}
+
+.expand-button {
+  display: block;
+  margin: 10px auto;
+  background-color: #007bff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+}
+
+.expand-button:hover {
+  background-color: #0056b3;
+}
+
+.article-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.article-image-wrapper {
+  width: 100%;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.article-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.article-content {
+  padding: 15px;
+}
+
+.expand-button {
+  display: block;
+  margin: 10px auto;
+  background-color: #007bff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+}
+
+.expand-button:hover {
+  background-color: #0056b3;
+}
+
 /* Conteneur principal */
 .news-container {
   padding: 20px;
