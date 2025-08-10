@@ -43,6 +43,8 @@ const Dashboard = () => {
   const [isEditingForm, setIsEditingForm] = useState(false);
   const [editingFormId, setEditingFormId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedForms, setExpandedForms] = useState({});
+  const [viewersModal, setViewersModal] = useState({ show: false, viewers: [] });
 
   // État pour modal PDF
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -371,6 +373,19 @@ const Dashboard = () => {
       setForms(forms.filter(f => f._id !== id));
     } catch (err) {
       setError('Erreur lors de la suppression du formulaire');
+    }
+  };
+
+  // Afficher les viewers
+  const handleShowViewers = async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await axios.get(`http://localhost:5000/api/forms/${id}/viewers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setViewersModal({ show: true, viewers: res.data });
+    } catch (err) {
+      setError('Erreur lors de la récupération des viewers');
     }
   };
 
@@ -1026,18 +1041,68 @@ const Dashboard = () => {
               <FaSearch className="search-icon" />
             </div>
             <div className="forms-list">
-              {forms.filter(form => form.name.toLowerCase().includes(searchQuery.toLowerCase())).map((form) => (
-                <div key={form._id} className="form-card">
-                  <h4>{form.name}</h4>
-                  <p>Créé le : {new Date(form.createdAt).toLocaleDateString()}</p>
-                  <div className="blog-content" dangerouslySetInnerHTML={{ __html: form.content ? form.content : 'Pas de contenu' }} />
-                  <div className="actions" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button title="Modifier" onClick={() => startEditingForm(form)} className="edit-button"><FaEdit /></button>
-                    <button title="Supprimer" onClick={() => handleDeleteForm(form._id)} className="delete-button"><FaTrash /></button>
+              {forms.filter(form => form.name.toLowerCase().includes(searchQuery.toLowerCase())).map((form) => {
+                const contentHtml = form.content ? form.content : '<p>Pas de contenu</p>';
+                const isLong = contentHtml.replace(/<[^>]+>/g, '').length > 300;
+                const isExpanded = expandedForms[form._id] || false;
+                const toggleExpand = () => {
+                  const newExpanded = !isExpanded;
+                  setExpandedForms(prev => ({ ...prev, [form._id]: newExpanded }));
+                  if (newExpanded) {
+                    const token = localStorage.getItem('token');
+                    axios.post(`http://localhost:5000/api/forms/${form._id}/view`, {}, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    })
+                    .then(response => {
+                      setForms(prevForms => prevForms.map(f => f._id === form._id ? { ...f, views: response.data.views } : f));
+                    })
+                    .catch(err => console.error('Erreur lors de l\'incrémentation des vues:', err));
+                  }
+                };
+                const getExcerpt = (html, length = 300) => {
+                  const text = html.replace(/<[^>]+>/g, '');
+                  return text.length > length ? text.slice(0, length) + '...' : text;
+                };
+
+                return (
+                  <div key={form._id} className="form-card">
+                    <h4>{form.name}</h4>
+                    <p>Créé le : {new Date(form.createdAt).toLocaleDateString()}</p>
+                    <button onClick={() => handleShowViewers(form._id)} className="views-button"><FaEye /> {form.views}</button>
+                    <div className="blog-content">
+                      {isExpanded ? (
+                        <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
+                      ) : (
+                        <p>{getExcerpt(contentHtml)}</p>
+                      )}
+                    </div>
+                    {isLong && (
+                      <button onClick={toggleExpand} className="expand-button">
+                        {isExpanded ? 'Réduire' : 'Lire plus'}
+                      </button>
+                    )}
+                    <div className="actions" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button title="Modifier" onClick={() => startEditingForm(form)} className="edit-button"><FaEdit /></button>
+                      <button title="Supprimer" onClick={() => handleDeleteForm(form._id)} className="delete-button"><FaTrash /></button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+            {viewersModal.show && (
+              <div className="viewers-modal">
+                <h4>Vus par :</h4>
+                <ul className="viewers-list scrollable">
+                  {viewersModal.viewers.map((viewer) => (
+                    <li key={viewer._id}>
+                      {viewer.firstName} {viewer.lastName}
+                      {viewer.profilePhoto && <img src={`http://localhost:5000/${viewer.profilePhoto}`} alt="Profile" className="small-avatar" />}
+                    </li>
+                  ))}
+                </ul>
+                <button onClick={() => setViewersModal({ show: false, viewers: [] })} className="close-button">Fermer</button>
+              </div>
+            )}
             <h3>{isEditingForm ? 'Modifier l\'article' : 'Créer un article'}</h3>
             <form onSubmit={handleFormSubmit}>
               <input

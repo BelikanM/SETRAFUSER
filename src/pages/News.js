@@ -1,9 +1,10 @@
 import React, { useContext, useState } from 'react';
 import { UserContext } from '../context/UserContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import 'react-quill/dist/quill.snow.css';
 import './News.css';
+import { FaEye } from 'react-icons/fa';
 
 const fetchArticles = async () => {
   const token = localStorage.getItem('token');
@@ -37,6 +38,9 @@ const News = () => {
   const { user } = useContext(UserContext);
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState(""); // 🔍 Barre de recherche
+  const [viewersModal, setViewersModal] = useState({ show: false, viewers: [] });
+
+  const queryClient = useQueryClient();
 
   const { data: articles = [], isLoading, isError, error } = useQuery({
     queryKey: ['news'],
@@ -45,8 +49,38 @@ const News = () => {
     refetchOnWindowFocus: true,
   });
 
+  const { mutate: incrementView } = useMutation({
+    mutationFn: async (id) => {
+      const token = localStorage.getItem('token');
+      await axios.post(`http://localhost:5000/api/forms/${id}/view`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['news']);
+    },
+  });
+
   const toggleExpand = (id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpanded((prev) => {
+      const newExpanded = { ...prev, [id]: !prev[id] };
+      if (!prev[id]) {
+        incrementView(id);
+      }
+      return newExpanded;
+    });
+  };
+
+  const handleShowViewers = async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await axios.get(`http://localhost:5000/api/forms/${id}/viewers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setViewersModal({ show: true, viewers: res.data });
+    } catch (err) {
+      console.error('Erreur lors de la récupération des viewers');
+    }
   };
 
   if (isLoading && articles.length === 0) {
@@ -106,6 +140,7 @@ const News = () => {
                 <p className="article-date">
                   Publié le : {new Date(article.createdAt).toLocaleDateString()}
                 </p>
+                <button onClick={() => handleShowViewers(article._id)} className="views-button"><FaEye /> {article.views}</button>
                 <div className="article-content">
                   {expanded[article._id] ? (
                     <div dangerouslySetInnerHTML={{ __html: cleanedContent }}></div>
@@ -126,6 +161,20 @@ const News = () => {
           })
         )}
       </div>
+      {viewersModal.show && (
+        <div className="viewers-modal">
+          <h4>Vus par :</h4>
+          <ul className="viewers-list scrollable">
+            {viewersModal.viewers.map((viewer) => (
+              <li key={viewer._id}>
+                {viewer.firstName} {viewer.lastName}
+                {viewer.profilePhoto && <img src={`http://localhost:5000/${viewer.profilePhoto}`} alt="Profile" className="small-avatar" />}
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => setViewersModal({ show: false, viewers: [] })} className="close-button">Fermer</button>
+        </div>
+      )}
     </div>
   );
 };
