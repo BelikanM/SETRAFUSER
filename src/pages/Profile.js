@@ -67,8 +67,10 @@ const Profile = () => {
       });
       return response.data;
     },
-    staleTime: 5 * 60 * 1000, // Cache pendant 5 minutes
-    cacheTime: 30 * 60 * 1000, // Garder en cache pendant 30 minutes
+    refetchInterval: 10000, // rafraîchit toutes les 10 secondes automatiquement
+    refetchOnWindowFocus: true, // refait la requête quand tu reviens sur l'onglet/fenêtre
+    staleTime: 5 * 60 * 1000, // Données considérées fraîches pendant 5 minutes
+    cacheTime: 10 * 60 * 1000, // Cache gardé 10 minutes en mémoire
   });
 
   const mutation = useMutation({
@@ -226,7 +228,8 @@ const Profile = () => {
     }
   };
 
-  if (isLoading) return <div style={{ textAlign: 'center', padding: '40px', fontSize: '18px' }}>Chargement...</div>;
+  // Afficher "Chargement..." seulement si aucune donnée n'est disponible
+  if (isLoading && !user) return <div style={{ textAlign: 'center', padding: '40px', fontSize: '18px' }}>Chargement...</div>;
   if (error) return <div style={{ textAlign: 'center', padding: '40px', color: 'red', fontSize: '18px' }}>{error.message || 'Erreur lors de la récupération du profil. Vérifiez si l\'utilisateur existe ou si le token est valide.'}</div>;
   if (!user) return <div style={{ textAlign: 'center', padding: '40px', fontSize: '18px' }}>Utilisateur non trouvé.</div>;
 
