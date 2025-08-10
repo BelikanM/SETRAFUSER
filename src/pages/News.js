@@ -45,8 +45,10 @@ const News = () => {
   const { data: articles = [], isLoading, isError, error } = useQuery({
     queryKey: ['news'],
     queryFn: fetchArticles,
-    refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchInterval: 10000, // rafraîchit toutes les 10 secondes automatiquement
+    refetchOnWindowFocus: true, // refait la requête quand tu reviens sur l'onglet/fenêtre
+    staleTime: 5 * 60 * 1000, // Données considérées fraîches pendant 5 minutes
+    cacheTime: 10 * 60 * 1000, // Cache gardé 10 minutes en mémoire
   });
 
   const { mutate: incrementView } = useMutation({
@@ -83,6 +85,7 @@ const News = () => {
     }
   };
 
+  // Afficher "Chargement..." seulement si aucune donnée n'est disponible
   if (isLoading && articles.length === 0) {
     return <div className="loading">Chargement des articles...</div>;
   }
@@ -107,8 +110,7 @@ const News = () => {
     <div className="news-container">
       <h1>Flux d'actualités</h1>
       <p>
-        Bienvenue, {user.firstName} {user.lastName} ({user.role}).  
-      
+        Bienvenue, {user.firstName} {user.lastName} ({user.role}).
       </p>
 
       {/* 🔍 Barre de recherche */}
@@ -140,7 +142,9 @@ const News = () => {
                 <p className="article-date">
                   Publié le : {new Date(article.createdAt).toLocaleDateString()}
                 </p>
-                <button onClick={() => handleShowViewers(article._id)} className="views-button"><FaEye /> {article.views}</button>
+                <button onClick={() => handleShowViewers(article._id)} className="views-button">
+                  <FaEye /> {article.views}
+                </button>
                 <div className="article-content">
                   {expanded[article._id] ? (
                     <div dangerouslySetInnerHTML={{ __html: cleanedContent }}></div>
@@ -168,11 +172,22 @@ const News = () => {
             {viewersModal.viewers.map((viewer) => (
               <li key={viewer._id}>
                 {viewer.firstName} {viewer.lastName}
-                {viewer.profilePhoto && <img src={`http://localhost:5000/${viewer.profilePhoto}`} alt="Profile" className="small-avatar" />}
+                {viewer.profilePhoto && (
+                  <img
+                    src={`http://localhost:5000/${viewer.profilePhoto}`}
+                    alt="Profile"
+                    className="small-avatar"
+                  />
+                )}
               </li>
             ))}
           </ul>
-          <button onClick={() => setViewersModal({ show: false, viewers: [] })} className="close-button">Fermer</button>
+          <button
+            onClick={() => setViewersModal({ show: false, viewers: [] })}
+            className="close-button"
+          >
+            Fermer
+          </button>
         </div>
       )}
     </div>
