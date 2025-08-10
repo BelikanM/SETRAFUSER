@@ -69,6 +69,14 @@ const Dashboard = () => {
   const formats = ['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image'];
 
   useEffect(() => {
+    if (quillRef.current) {
+      const quill = quillRef.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      toolbar.addHandler('image', imageHandler);
+    }
+  }, []);
+
+  useEffect(() => {
     if (user) {
       setEditProfile({ firstName: user.firstName, lastName: user.lastName });
     }
@@ -458,14 +466,6 @@ const Dashboard = () => {
       ],
     };
   };
-
-  useEffect(() => {
-    if (quillRef.current) {
-      const quill = quillRef.current.getEditor();
-      const toolbar = quill.getModule('toolbar');
-      toolbar.addHandler('image', imageHandler);
-    }
-  }, []);
 
   const imageHandler = () => {
     const input = document.createElement('input');
