@@ -22,17 +22,9 @@ const extractFirstImage = (html) => {
   return match ? match[1] : null;
 };
 
-// Récupère le titre (premier h1 ou h2)
-const extractFirstTitle = (html) => {
-  const match = html.match(/<h[1-2][^>]*>(.*?)<\/h[1-2]>/i);
-  return match ? match[1] : null;
-};
-
-// Supprime l'image et le titre du contenu
+// Supprime l'image du contenu
 const cleanContent = (html) => {
-  return html
-    .replace(/<img[^>]*>/i, '') // enlève première image
-    .replace(/<h[1-2][^>]*>.*?<\/h[1-2]>/i, ''); // enlève premier titre
+  return html.replace(/<img[^>]*>/i, ''); // enlève première image
 };
 
 // Tronque le texte
@@ -69,10 +61,10 @@ const News = () => {
 
   // 🔍 Filtrer les articles selon la recherche
   const filteredArticles = articles.filter((article) => {
-    const firstTitle = extractFirstTitle(article.content) || "";
+    const title = article.name || "";
     const textContent = article.content.replace(/<[^>]+>/g, "");
     return (
-      firstTitle.toLowerCase().includes(search.toLowerCase()) ||
+      title.toLowerCase().includes(search.toLowerCase()) ||
       textContent.toLowerCase().includes(search.toLowerCase())
     );
   });
@@ -101,15 +93,14 @@ const News = () => {
           filteredArticles.map((article) => {
             const isLong = article.content.replace(/<[^>]+>/g, '').length > 300;
             const firstImage = extractFirstImage(article.content);
-            const firstTitle = extractFirstTitle(article.content);
             const cleanedContent = cleanContent(article.content);
 
             return (
               <div key={article._id} className="article-card">
                 {firstImage && (
                   <div className="article-image-wrapper">
+                    {article.name && <h2 className="article-title">{article.name}</h2>}
                     <img src={firstImage} alt="Vignette" className="article-image" />
-                    {firstTitle && <h2 className="article-title">{firstTitle}</h2>}
                   </div>
                 )}
                 <p className="article-date">
