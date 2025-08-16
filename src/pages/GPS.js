@@ -453,29 +453,31 @@ const IntelligentMapController = ({
     
     if (allPositions.length === 0) return;
     
-    if (allPositions.length === 1) {
-      const position = allPositions[0];
-      const zoom = trackingMode === 'close' ? 19 : trackingMode === 'normal' ? 16 : 14;
-      map.setView([position.lat, position.lng], zoom, { animate: true, duration: 1.5 });
-      return;
-    }
-    
-    const lats = allPositions.map(p => p.lat);
-    const lngs = allPositions.map(p => p.lng);
-    
-    const bounds = [
-      [Math.min(...lats), Math.min(...lngs)],
-      [Math.max(...lats), Math.max(...lngs)]
-    ];
-    
-    const boundsKey = bounds.flat().map(n => n.toFixed(4)).join(',');
-    if (lastBoundsRef.current === boundsKey) return;
-    lastBoundsRef.current = boundsKey;
-    
-    map.fitBounds(bounds, { 
-      padding: [80, 80],
-      animate: true,
-      duration: 2
+    map.whenReady(() => {
+      if (allPositions.length === 1) {
+        const position = allPositions[0];
+        const zoom = trackingMode === 'close' ? 19 : trackingMode === 'normal' ? 16 : 14;
+        map.setView([position.lat, position.lng], zoom, { animate: true, duration: 1.5 });
+        return;
+      }
+      
+      const lats = allPositions.map(p => p.lat);
+      const lngs = allPositions.map(p => p.lng);
+      
+      const bounds = [
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)]
+      ];
+      
+      const boundsKey = bounds.flat().map(n => n.toFixed(4)).join(',');
+      if (lastBoundsRef.current === boundsKey) return;
+      lastBoundsRef.current = boundsKey;
+      
+      map.fitBounds(bounds, { 
+        padding: [80, 80],
+        animate: true,
+        duration: 2
+      });
     });
   }, [map, realTimePositions, autoCenter, selectedUsers, trackingMode, allEmployees]);
   
@@ -998,7 +1000,7 @@ const Gps = () => {
                 zIndexOffset={100}
               >
                 <Popup maxWidth={400} className="employee-popup-3d">
-                                    <div className="employee-popup-content-3d">
+                  <div className="employee-popup-content-3d">
                     <div className="employee-popup-header-3d">
                       <div 
                         className="employee-avatar-popup-3d"
@@ -1847,7 +1849,7 @@ const Gps = () => {
             {connectionStatus === 'connected' ? 'GPS 3D Connecté' : 'Connexion...'}
           </span>
         </div>
-                <div className="perf-item-3d">
+        <div className="perf-item-3d">
           <i className="fas fa-clock"></i>
           <span>MAJ: {new Date().toLocaleTimeString('fr-FR')}</span>
         </div>
@@ -2161,4 +2163,3 @@ const Gps = () => {
 };
 
 export default Gps;
-
