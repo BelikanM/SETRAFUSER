@@ -7,7 +7,7 @@ import $ from "jquery";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// 🔹 Détection d'icônes par défaut Leaflet (corrige bug des images)
+// Correction bug icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
@@ -15,16 +15,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
 });
 
-// 🔹 Icônes utilisateurs
+// Icônes utilisateurs personnalisées
 const createCustomIcon = (role, isGroup = false, isCurrentUser = false) => {
   if (isGroup) {
     return L.divIcon({
       html: `<div style="
         background:#9333ea; width:40px; height:40px;
-        border-radius:50%;
-        display:flex; justify-content:center; align-items:center;
-        font-weight:bold; color:white; font-size:16px;
-        border:3px solid white; box-shadow: 0 0 6px #444;">
+        border-radius:50%; display:flex; justify-content:center; align-items:center;
+        font-weight:bold; color:white; font-size:16px; border:3px solid white; box-shadow:0 0 6px #444;">
         👥
       </div>`,
       iconSize: [40, 40],
@@ -59,7 +57,7 @@ export default function GPS() {
   const [search, setSearch] = useState("");
   const watchIdRef = useRef(null);
 
-  // === API fetch USERS (admins + employés) ===
+  // === API fetch USERS ===
   const fetchUsers = useCallback(async () => {
     if (!token) throw new Error("Token manquant");
     const response = await $.ajax({
@@ -72,25 +70,32 @@ export default function GPS() {
     );
   }, [token]);
 
-  const { data: users = [], isLoading, error, refetch } = useQuery({
+  const { data: users = [], isLoading, error } = useQuery({
     queryKey: ["users", "gps"],
     queryFn: fetchUsers,
     enabled: !!user && !!token,
-    refetchInterval: 30000, // toutes les 30s refresh
+    refetchInterval: 30000,
   });
 
-  // === GPS LIVE utilisateur connecté & envoi automatique API ===
+  // === GPS LIVE utilisateur ===
   useEffect(() => {
     if (!navigator.geolocation || !user || !token) return;
 
-    // API POST appeler pour envoyer position précise
     const sendPositionToServer = async (loc) => {
       try {
         await $.ajax({
           url: "http://localhost:5000/api/users/update-location",
           method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          data: JSON.stringify({ userId: user._id, lat: loc.lat, lng: loc.lng, accuracy: loc.acc }),
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          data: JSON.stringify({
+            userId: user._id,
+            lat: loc.lat,
+            lng: loc.lng,
+            accuracy: loc.acc,
+          }),
         });
       } catch (e) {
         console.error("Erreur POST localisation:", e);
@@ -101,12 +106,11 @@ export default function GPS() {
       const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
       setCurrentLocation(loc);
       localStorage.setItem("current_gps", JSON.stringify(loc));
-      sendPositionToServer(loc); // poste immédiatement ta position
+      sendPositionToServer(loc);
     };
 
     const errorHandler = (err) => console.error("Erreur GPS:", err);
 
-    // Position actuelle + surveillance continue
     navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true });
     watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true });
 
@@ -115,32 +119,12 @@ export default function GPS() {
     };
   }, [user, token]);
 
-  // === jQuery sauvegarde/restaure scroll ===
-  useEffect(() => {
-    const savedScroll = localStorage.getItem("gps_scroll") || 0;
-    $(window).scrollTop(savedScroll);
-
-    const saveScroll = () => {
-      localStorage.setItem("gps_scroll", $(window).scrollTop());
-    };
-
-    $(window).on("scroll.gpssave beforeunload.gpssave", saveScroll);
-
-    return () => {
-      $(window).off("scroll.gpssave beforeunload.gpssave");
-    };
-  }, []);
-
-  if (!user) return <p>⚠️ Veuillez vous connecter</p>;
-  if (isLoading) return <p>Chargement des utilisateurs...</p>;
-  if (error) return <p>Erreur: {error.message}</p>;
-
   // === Filtrage recherche ===
   const filteredUsers = users.filter((u) =>
     `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  // === Grouper utilisateurs par position (arrondi) ===
+  // === Grouper les utilisateurs par position (arrondi) ===
   const groupByPosition = {};
   filteredUsers.forEach((u) => {
     const lat = u.lastLocation?.lat || 48.8566 + Math.random() * 0.01;
@@ -151,6 +135,10 @@ export default function GPS() {
   });
 
   const { BaseLayer } = LayersControl;
+
+  if (!user) return <p>⚠️ Veuillez vous connecter</p>;
+  if (isLoading) return <p>Chargement des utilisateurs...</p>;
+  if (error) return <p>Erreur: {error.message}</p>;
 
   return (
     <div>
@@ -171,33 +159,77 @@ export default function GPS() {
         style={{ height: "600px", width: "100%", borderRadius: "10px" }}
       >
         <LayersControl position="topright">
-          {/* Fond OpenStreetMap */}
+          {/* 🌍 OpenStreetMap Standard */}
           <BaseLayer checked name="🌍 OpenStreetMap">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           </BaseLayer>
 
-          {/* Fond NASA GIBS Blue Marble */}
-          <BaseLayer name="🛰️ NASA Blue Marble (Satellite)">
+          {/* 🗺️ OSM Humanitarian */}
+          <BaseLayer name="🌐 OSM Humanitarian">
             <TileLayer
-              attribution="NASA GIBS"
-              url="https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
-              subdomains={["a", "b", "c"]}
-              layer="BlueMarble_ShadedRelief"
-              time="2004-01-01"
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> HOT'
+              url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+            />
+          </BaseLayer>
+
+          {/* 🛰️ Esri Satellite */}
+          <BaseLayer name="🛰️ Esri Satellite (haute résolution)">
+            <TileLayer
+              attribution="Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </BaseLayer>
+
+          {/* 🗺️ OpenTopoMap */}
+          <BaseLayer name="⛰️ OpenTopoMap (relief)">
+            <TileLayer
+              attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            />
+          </BaseLayer>
+
+          {/* 🎨 Carto Light */}
+          <BaseLayer name="💡 Carto Light">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              subdomains={["a","b","c","d"]}
+            />
+          </BaseLayer>
+
+          {/* 🌙 Carto Dark */}
+          <BaseLayer name="🌑 Carto Dark">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              subdomains={["a","b","c","d"]}
+            />
+          </BaseLayer>
+
+          {/* 🎨 Stamen Toner Lite */}
+          <BaseLayer name="📝 Stamen Toner Lite">
+            <TileLayer
+              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>'
+              url="https://stamen-tiles.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png"
+            />
+          </BaseLayer>
+
+          {/* 🎨 Stamen Watercolor */}
+          <BaseLayer name="🎨 Stamen Watercolor">
+            <TileLayer
+              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>'
+              url="https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg"
             />
           </BaseLayer>
         </LayersControl>
 
-        {/* Ma position GPS */}
+        {/* Position utilisateur */}
         {currentLocation && (
           <>
-            <Marker
-              position={[currentLocation.lat, currentLocation.lng]}
-              icon={createCustomIcon("employee", false, true)}
-            >
+            <Marker position={[currentLocation.lat, currentLocation.lng]} icon={createCustomIcon("employee", false, true)}>
               <Popup>
                 🚀 <b>Vous êtes ici</b><br />
                 Lat: {currentLocation.lat.toFixed(5)}<br />
@@ -250,7 +282,7 @@ export default function GPS() {
             </React.Fragment>
           );
         })}
-      </MapContainer>
+            </MapContainer>
     </div>
   );
 }
