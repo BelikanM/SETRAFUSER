@@ -1,0 +1,45 @@
+.gps-container {
+  padding: 10px;
+  font-family: Arial, sans-serif;
+}
+
+.search-bar {
+  margin: 10px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.search-bar input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.popup-user h4 {
+  margin: 0 0 5px;
+}
+.mail-btn {
+  margin-top: 5px;
+  background: #2563eb;
+  color: #fff;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.mail-btn:hover {
+  background: #1d4ed8;
+}
+
+.users-list {
+  margin-top: 15px;
+}
+.users-list ul {
+  list-style: none;
+  padding: 0;
+}
+.users-list li {
+  padding: 5px 0;
+}
+
