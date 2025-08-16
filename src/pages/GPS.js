@@ -249,6 +249,35 @@ const formatDateTime = (date) => {
   }
 };
 
+// Icône employé standard
+const createEmployeeIcon = (color, userName, role = 'employee', isOnline = false) => {
+  const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  
+  const roleIcons = {
+    admin: '👑',
+    manager: '💼',
+    employee: '👤',
+    supervisor: '👨‍💼'
+  };
+  
+  return L.divIcon({
+    html: `
+      <div class="employee-marker-3d ${isOnline ? 'online' : 'offline'}" style="--marker-color: ${color}">
+        <div class="employee-avatar">
+          <span class="employee-initials">${initials}</span>
+          <div class="role-indicator">${roleIcons[role] || '👤'}</div>
+          <div class="status-dot ${isOnline ? 'online' : 'offline'}"></div>
+        </div>
+        <div class="employee-pulse ${isOnline ? 'active' : ''}"></div>
+        <div class="employee-shadow"></div>
+      </div>
+    `,
+    className: 'employee-container-3d',
+    iconSize: [50, 50],
+    iconAnchor: [25, 25]
+  });
+};
+
 // Icône de marqueur GPS 3D ultra-avancée
 const createRealGPSIcon = (color, userName, isMoving = false, heading = 0, accuracy = 0, weather = null) => {
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -387,7 +416,8 @@ const IntelligentMapController = ({
   onMapReady,
   trackingMode,
   weatherData,
-  locationDescriptions 
+  locationDescriptions,
+  allEmployees
 }) => {
   const map = useMap();
   const lastBoundsRef = useRef(null);
@@ -396,25 +426,42 @@ const IntelligentMapController = ({
     if (onMapReady) onMapReady(map);
   }, [map, onMapReady]);
   
-  // Auto-centrage intelligent
+  // Auto-centrage intelligent incluant les employés statiques
   useEffect(() => {
-    if (!autoCenter || !realTimePositions || Object.keys(realTimePositions).length === 0) return;
+    if (!autoCenter) return;
     
-    const filteredPositions = Object.entries(realTimePositions)
-      .filter(([userId]) => selectedUsers.has(userId))
-      .map(([_, position]) => position);
+    const allPositions = [];
     
-    if (filteredPositions.length === 0) return;
+    // Positions GPS temps réel
+    if (realTimePositions && Object.keys(realTimePositions).length > 0) {
+      const gpsPositions = Object.entries(realTimePositions)
+        .filter(([userId]) => selectedUsers.has(userId))
+        .map(([_, position]) => position);
+      allPositions.push(...gpsPositions);
+    }
     
-    if (filteredPositions.length === 1) {
-      const position = filteredPositions[0];
+    // Positions des employés (fixes)
+    if (allEmployees && allEmployees.length > 0) {
+      const employeePositions = allEmployees
+        .filter(emp => emp.location && emp.location.coordinates && selectedUsers.has(emp._id))
+        .map(emp => ({
+          lat: emp.location.coordinates[1],
+          lng: emp.location.coordinates[0]
+        }));
+      allPositions.push(...employeePositions);
+    }
+    
+    if (allPositions.length === 0) return;
+    
+    if (allPositions.length === 1) {
+      const position = allPositions[0];
       const zoom = trackingMode === 'close' ? 19 : trackingMode === 'normal' ? 16 : 14;
       map.setView([position.lat, position.lng], zoom, { animate: true, duration: 1.5 });
       return;
     }
     
-    const lats = filteredPositions.map(p => p.lat);
-    const lngs = filteredPositions.map(p => p.lng);
+    const lats = allPositions.map(p => p.lat);
+    const lngs = allPositions.map(p => p.lng);
     
     const bounds = [
       [Math.min(...lats), Math.min(...lngs)],
@@ -430,7 +477,7 @@ const IntelligentMapController = ({
       animate: true,
       duration: 2
     });
-  }, [map, realTimePositions, autoCenter, selectedUsers, trackingMode]);
+  }, [map, realTimePositions, autoCenter, selectedUsers, trackingMode, allEmployees]);
   
   return null;
 };
@@ -443,6 +490,7 @@ const Gps = () => {
   // États principaux
   const [selectedUsers, setSelectedUsers] = useState(new Set());
   const [showTracks, setShowTracks] = useState(true);
+  const [showEmployeePositions, setShowEmployeePositions] = useState(true);
   const [autoCenter, setAutoCenter] = useState(true);
   const [trackingMode, setTrackingMode] = useState('normal');
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -470,7 +518,7 @@ const Gps = () => {
   const lastUpdateRef = useRef({});
   const controlsTimeoutRef = useRef(null);
 
-  // Récupération des utilisateurs
+  // Récupération des utilisateurs avec leurs positions
   const fetchUsers = useCallback(async () => {
     if (!token) throw new Error('Token manquant');
 
@@ -490,7 +538,14 @@ const Gps = () => {
           ['employee', 'admin', 'manager'].includes(u.role) && 
           u.isVerified && 
           u.isApproved
-        );
+        )
+        .map(u => ({
+          ...u,
+          // Assurer que la localisation est correctement formatée
+          location: u.location && u.location.coordinates ? u.location : null,
+          isOnline: u.lastActivity ? 
+            (new Date() - new Date(u.lastActivity)) < 300000 : false // 5 minutes
+        }));
 
       return validUsers;
     } catch (error) {
@@ -782,6 +837,12 @@ const Gps = () => {
             setShowTracks(prev => !prev);
           }
           break;
+        case 'KeyE':
+          if (event.ctrlKey) {
+            event.preventDefault();
+            setShowEmployeePositions(prev => !prev);
+          }
+          break;
         case 'KeyC':
           if (event.ctrlKey) {
             event.preventDefault();
@@ -813,9 +874,18 @@ const Gps = () => {
     Object.entries(realTimePositions).filter(([userId]) => selectedUsers.has(userId))
   );
 
+  // Positions des employés avec localisation
+  const employeesWithLocation = users.filter(emp => 
+    emp.location && 
+    emp.location.coordinates && 
+    emp.location.coordinates.length === 2 &&
+    selectedUsers.has(emp._id)
+  );
+
   const stats = {
     totalUsers: users.length,
     activeGPS: Object.keys(realTimePositions).length,
+    employeesWithLocation: employeesWithLocation.length,
     moving: Object.values(activePositions).filter(p => p.isMoving).length,
     avgAccuracy: Object.values(activePositions).length > 0 
       ? Math.round(Object.values(activePositions).reduce((sum, p) => sum + p.accuracy, 0) / Object.values(activePositions).length)
@@ -833,7 +903,7 @@ const Gps = () => {
           </div>
           <div className="loading-text-3d">
             <h2>Initialisation GPS Avancé</h2>
-            <p>Connexion aux satellites et services météo...</p>
+            <p>Connexion aux satellites et chargement des positions employés...</p>
             <div className="loading-progress-3d">
               <div className="progress-bar-3d"></div>
             </div>
@@ -841,6 +911,10 @@ const Gps = () => {
               <div className="loading-stat">
                 <i className="fas fa-satellite"></i>
                 <span>Géolocalisation</span>
+              </div>
+              <div className="loading-stat">
+                <i className="fas fa-users"></i>
+                <span>Positions employés</span>
               </div>
               <div className="loading-stat">
                 <i className="fas fa-cloud-sun"></i>
@@ -903,7 +977,142 @@ const Gps = () => {
             trackingMode={trackingMode}
             weatherData={weatherData}
             locationDescriptions={locationDescriptions}
+            allEmployees={users}
           />
+
+          {/* MARQUEURS DES POSITIONS D'EMPLOYÉS (STATIQUES) */}
+          {showEmployeePositions && employeesWithLocation.map(employee => {
+            const hasGPS = realTimePositions[employee._id];
+            if (hasGPS) return null; // Ne pas afficher si GPS actif
+            
+            return (
+              <Marker
+                key={`employee-pos-${employee._id}`}
+                position={[employee.location.coordinates[1], employee.location.coordinates[0]]}
+                icon={createEmployeeIcon(
+                  userColors[employee._id],
+                  `${employee.firstName} ${employee.lastName}`,
+                  employee.role,
+                  employee.isOnline
+                )}
+                zIndexOffset={100}
+              >
+                <Popup maxWidth={400} className="employee-popup-3d">
+                                    <div className="employee-popup-content-3d">
+                    <div className="employee-popup-header-3d">
+                      <div 
+                        className="employee-avatar-popup-3d"
+                        style={{ backgroundColor: userColors[employee._id] }}
+                      >
+                        <span className="employee-initials-popup">{employee.firstName[0]}{employee.lastName[0]}</span>
+                        <div className={`status-indicator-popup ${employee.isOnline ? 'online' : 'offline'}`}>
+                          <i className={`fas ${employee.isOnline ? 'fa-circle' : 'fa-circle'}`}></i>
+                        </div>
+                      </div>
+                      <div className="employee-info-popup-3d">
+                        <h4>{employee.firstName} {employee.lastName}</h4>
+                        <span className={`role-badge-popup-3d ${employee.role}`}>
+                          {employee.role === 'admin' ? '👑 Admin' :
+                           employee.role === 'manager' ? '💼 Manager' :
+                           employee.role === 'supervisor' ? '👨‍💼 Superviseur' :
+                           '👤 Employé'}
+                        </span>
+                        <div className={`online-status-popup-3d ${employee.isOnline ? 'online' : 'offline'}`}>
+                          <i className={`fas ${employee.isOnline ? 'fa-wifi' : 'fa-wifi-slash'}`}></i>
+                          {employee.isOnline ? 'En ligne' : 'Hors ligne'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="employee-details-popup-3d">
+                      <div className="employee-contact-3d">
+                        <h5><i className="fas fa-address-card"></i> Informations</h5>
+                        <div className="contact-info-3d">
+                          <div className="contact-item-3d">
+                            <i className="fas fa-envelope"></i>
+                            <span>{employee.email}</span>
+                          </div>
+                          {employee.phone && (
+                            <div className="contact-item-3d">
+                              <i className="fas fa-phone"></i>
+                              <span>{employee.phone}</span>
+                            </div>
+                          )}
+                          {employee.department && (
+                            <div className="contact-item-3d">
+                              <i className="fas fa-building"></i>
+                              <span>{employee.department}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="employee-location-info-3d">
+                        <h5><i className="fas fa-map-marker-alt"></i> Position assignée</h5>
+                        <div className="location-details-popup-3d">
+                          <div className="coordinates-3d">
+                            <i className="fas fa-crosshairs"></i>
+                            <span>{employee.location.coordinates[1].toFixed(6)}, {employee.location.coordinates[0].toFixed(6)}</span>
+                          </div>
+                          {employee.location.address && (
+                            <div className="address-3d">
+                              <i className="fas fa-home"></i>
+                              <span>{employee.location.address}</span>
+                            </div>
+                          )}
+                          {employee.workLocation && (
+                            <div className="work-location-3d">
+                              <i className="fas fa-briefcase"></i>
+                              <span>{employee.workLocation}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {employee.lastActivity && (
+                        <div className="employee-activity-3d">
+                          <h5><i className="fas fa-clock"></i> Dernière activité</h5>
+                          <div className="activity-time-3d">
+                            {new Date(employee.lastActivity).toLocaleString('fr-FR')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="employee-actions-3d">
+                        <button 
+                          className="action-btn-3d contact-btn"
+                          onClick={() => window.location.href = `mailto:${employee.email}`}
+                        >
+                          <i className="fas fa-envelope"></i>
+                          Contacter
+                        </button>
+                        {employee.phone && (
+                          <button 
+                            className="action-btn-3d call-btn"
+                            onClick={() => window.location.href = `tel:${employee.phone}`}
+                          >
+                            <i className="fas fa-phone"></i>
+                            Appeler
+                          </button>
+                        )}
+                        <button 
+                          className="action-btn-3d center-btn"
+                          onClick={() => {
+                            if (mapInstance) {
+                              mapInstance.setView([employee.location.coordinates[1], employee.location.coordinates[0]], 16);
+                            }
+                          }}
+                        >
+                          <i className="fas fa-crosshairs"></i>
+                          Centrer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
 
           {/* Trajectoires GPS en jaune avec distances */}
           {showTracks && Object.entries(userTracks).map(([userId, track]) => {
@@ -999,7 +1208,7 @@ const Gps = () => {
                   />
                 )}
                 
-                               {/* Cercle de précision amélioré */}
+                {/* Cercle de précision amélioré */}
                 <Circle
                   center={[position.lat, position.lng]}
                   radius={position.accuracy}
@@ -1220,6 +1429,13 @@ const Gps = () => {
               </div>
             </div>
             <div className="stat-card-3d">
+              <div className="stat-icon-3d"><i className="fas fa-map-marker-alt"></i></div>
+              <div className="stat-content-3d">
+                <div className="stat-number-3d">{stats.employeesWithLocation}</div>
+                <div className="stat-label-3d">Positions fixes</div>
+              </div>
+            </div>
+            <div className="stat-card-3d">
               <div className="stat-icon-3d"><i className="fas fa-running"></i></div>
               <div className="stat-content-3d">
                 <div className="stat-number-3d">{stats.moving}</div>
@@ -1272,6 +1488,19 @@ const Gps = () => {
               </span>
             </label>
             
+            <label className="control-toggle-3d">
+              <input
+                type="checkbox"
+                checked={showEmployeePositions}
+                onChange={(e) => setShowEmployeePositions(e.target.checked)}
+              />
+              <span className="toggle-slider-3d"></span>
+              <span className="toggle-label-3d">
+                <i className="fas fa-users"></i>
+                Positions employés
+              </span>
+            </label>
+            
             <select 
               value={trackingMode} 
               onChange={(e) => setTrackingMode(e.target.value)}
@@ -1289,7 +1518,7 @@ const Gps = () => {
           <div className="panel-header-3d">
             <h3>
               <i className="fas fa-satellite-dish"></i>
-              Utilisateurs GPS 3D ({Object.keys(activePositions).length})
+              Utilisateurs GPS 3D ({Object.keys(activePositions).length + employeesWithLocation.length})
             </h3>
           </div>
           
@@ -1301,6 +1530,7 @@ const Gps = () => {
               const isCurrentUser = userData._id === user?._id;
               const cacheKey = position ? `${position.lat.toFixed(4)}_${position.lng.toFixed(4)}` : null;
               const weather = cacheKey ? weatherData[cacheKey] : null;
+              const hasStaticLocation = userData.location && userData.location.coordinates;
               
               return (
                 <div 
@@ -1323,11 +1553,19 @@ const Gps = () => {
                         <i className={`fas ${position.isMoving ? 'fa-running' : 'fa-map-pin'}`}></i>
                       </div>
                     )}
+                    {!position && hasStaticLocation && (
+                      <div className="static-location-indicator-3d">
+                        <i className="fas fa-building"></i>
+                      </div>
+                    )}
                     {weather && (
                       <div className="weather-indicator-mini">
                         <span>{weather.icon}</span>
                       </div>
                     )}
+                    <div className={`online-status-mini ${userData.isOnline ? 'online' : 'offline'}`}>
+                      <i className={`fas ${userData.isOnline ? 'fa-circle' : 'fa-circle'}`}></i>
+                    </div>
                   </div>
                   
                   <div className="user-details-realtime-3d">
@@ -1339,12 +1577,12 @@ const Gps = () => {
                     
                     {position ? (
                       <div className="position-summary-3d">
-                        <div className="location-text-3d">
-                          <i className="fas fa-map-marker-alt"></i>
-                          {position.address.city || 'Localisation...'}
+                        <div className="location-text-3d gps-active">
+                          <i className="fas fa-satellite"></i>
+                          GPS: {position.address.city || 'Localisation...'}
                         </div>
                         <div className="gps-quality-3d">
-                          <i className="fas fa-satellite"></i>
+                          <i className="fas fa-crosshairs"></i>
                           ±{Math.round(position.accuracy)}m
                         </div>
                         {weather && (
@@ -1358,6 +1596,27 @@ const Gps = () => {
                         </div>
                         <div className="last-update-3d">
                           {formatDateTime(position.timestamp)}
+                        </div>
+                      </div>
+                    ) : hasStaticLocation ? (
+                      <div className="position-summary-3d static">
+                        <div className="location-text-3d static-location">
+                          <i className="fas fa-map-marker-alt"></i>
+                          Position fixe assignée
+                        </div>
+                        <div className="static-coordinates">
+                          <i className="fas fa-crosshairs"></i>
+                          {userData.location.coordinates[1].toFixed(4)}, {userData.location.coordinates[0].toFixed(4)}
+                        </div>
+                        {userData.location.address && (
+                          <div className="static-address">
+                            <i className="fas fa-home"></i>
+                            {userData.location.address}
+                          </div>
+                        )}
+                        <div className={`online-status-text ${userData.isOnline ? 'online' : 'offline'}`}>
+                          <i className={`fas ${userData.isOnline ? 'fa-wifi' : 'fa-wifi-slash'}`}></i>
+                          {userData.isOnline ? 'En ligne' : 'Hors ligne'}
                         </div>
                       </div>
                     ) : error ? (
@@ -1387,6 +1646,7 @@ const Gps = () => {
                       <i className={`fas ${
                         permission === 'granted' ? 'fa-satellite' :
                         permission === 'denied' ? 'fa-times-circle' :
+                        hasStaticLocation ? 'fa-map-marker-alt' :
                         'fa-clock'
                       }`}></i>
                     </div>
@@ -1400,6 +1660,11 @@ const Gps = () => {
                         <div className="signal-bar-3d bar2"></div>
                         <div className="signal-bar-3d bar3"></div>
                         <div className="signal-bar-3d bar4"></div>
+                      </div>
+                    )}
+                    {!position && hasStaticLocation && (
+                      <div className="static-location-icon-3d">
+                        <i className="fas fa-building"></i>
                       </div>
                     )}
                   </div>
@@ -1417,6 +1682,10 @@ const Gps = () => {
               <div className="legend-item-3d">
                 <div className="legend-icon-3d gps-active-3d"></div>
                 <span>GPS Actif</span>
+              </div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d employee-static-3d"></div>
+                <span>Position employé fixe</span>
               </div>
               <div className="legend-item-3d">
                 <div className="legend-icon-3d gps-moving-3d"></div>
@@ -1438,6 +1707,10 @@ const Gps = () => {
                 <div className="legend-icon-3d location-3d-icon"></div>
                 <span>Lieu 3D</span>
               </div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d online-status-icon"></div>
+                <span>Status en ligne</span>
+              </div>
             </div>
           </div>
           
@@ -1448,6 +1721,9 @@ const Gps = () => {
             </div>
             <div className="shortcut-item-3d">
               <kbd>Ctrl+T</kbd> <span>Trajectoires on/off</span>
+            </div>
+            <div className="shortcut-item-3d">
+              <kbd>Ctrl+E</kbd> <span>Positions employés on/off</span>
             </div>
             <div className="shortcut-item-3d">
               <kbd>Ctrl+C</kbd> <span>Contrôles on/off</span>
@@ -1477,10 +1753,24 @@ const Gps = () => {
         </button>
         <button 
           onClick={() => {
-            if (Object.keys(activePositions).length > 0) {
-              const positions = Object.values(activePositions);
-              const lats = positions.map(p => p.lat);
-              const lngs = positions.map(p => p.lng);
+            const allPositions = [];
+            
+            // Positions GPS
+            Object.values(activePositions).forEach(pos => {
+              allPositions.push({ lat: pos.lat, lng: pos.lng });
+            });
+            
+            // Positions fixes des employés
+            employeesWithLocation.forEach(emp => {
+              allPositions.push({ 
+                lat: emp.location.coordinates[1], 
+                lng: emp.location.coordinates[0] 
+              });
+            });
+            
+            if (allPositions.length > 0) {
+              const lats = allPositions.map(p => p.lat);
+              const lngs = allPositions.map(p => p.lng);
               const bounds = [
                 [Math.min(...lats), Math.min(...lngs)],
                 [Math.max(...lats), Math.max(...lngs)]
@@ -1498,11 +1788,13 @@ const Gps = () => {
             const currentUserPosition = currentUser ? realTimePositions[currentUser._id] : null;
             if (currentUserPosition && mapInstance) {
               mapInstance.setView([currentUserPosition.lat, currentUserPosition.lng], 17);
+            } else if (currentUser?.location?.coordinates) {
+              mapInstance.setView([currentUser.location.coordinates[1], currentUser.location.coordinates[0]], 17);
             }
           }}
           className="zoom-btn-3d zoom-location-3d"
           title="Ma position"
-          disabled={!currentUser || !realTimePositions[currentUser?._id]}
+          disabled={!currentUser || (!realTimePositions[currentUser?._id] && !currentUser?.location?.coordinates)}
         >
           <i className="fas fa-location-arrow"></i>
         </button>
@@ -1555,7 +1847,7 @@ const Gps = () => {
             {connectionStatus === 'connected' ? 'GPS 3D Connecté' : 'Connexion...'}
           </span>
         </div>
-        <div className="perf-item-3d">
+                <div className="perf-item-3d">
           <i className="fas fa-clock"></i>
           <span>MAJ: {new Date().toLocaleTimeString('fr-FR')}</span>
         </div>
@@ -1580,7 +1872,11 @@ const Gps = () => {
         )}
         <div className="perf-item-3d">
           <i className="fas fa-users"></i>
-          <span>{Object.keys(activePositions).length} actifs</span>
+          <span>{Object.keys(activePositions).length} GPS actifs</span>
+        </div>
+        <div className="perf-item-3d">
+          <i className="fas fa-map-marker-alt"></i>
+          <span>{employeesWithLocation.length} positions fixes</span>
         </div>
         <div className="perf-item-3d">
           <i className="fas fa-route"></i>
@@ -1601,6 +1897,265 @@ const Gps = () => {
           ))}
         </div>
       </div>
+
+      {/* Panneau de statistiques avancées */}
+      <div className="advanced-stats-panel">
+        <h4><i className="fas fa-chart-line"></i> Statistiques Avancées</h4>
+        <div className="stats-grid-advanced">
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-satellite"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">GPS Actifs</div>
+              <div className="stat-value-large">{stats.activeGPS}</div>
+              <div className="stat-subtitle">Suivi temps réel</div>
+            </div>
+          </div>
+          
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-building"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">Positions Fixes</div>
+              <div className="stat-value-large">{stats.employeesWithLocation}</div>
+              <div className="stat-subtitle">Employés localisés</div>
+            </div>
+          </div>
+          
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-running"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">En Mouvement</div>
+              <div className="stat-value-large">{stats.moving}</div>
+              <div className="stat-subtitle">Déplacements actifs</div>
+            </div>
+          </div>
+          
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-route"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">Distance Totale</div>
+              <div className="stat-value-large">{(stats.totalDistance / 1000).toFixed(1)}km</div>
+              <div className="stat-subtitle">Parcours cumulé</div>
+            </div>
+          </div>
+          
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-crosshairs"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">Précision Moyenne</div>
+              <div className="stat-value-large">±{stats.avgAccuracy}m</div>
+              <div className="stat-subtitle">Qualité du signal</div>
+            </div>
+          </div>
+          
+          <div className="advanced-stat-item">
+            <div className="stat-icon-advanced">
+              <i className="fas fa-wifi"></i>
+            </div>
+            <div className="stat-content-advanced">
+              <div className="stat-title">En Ligne</div>
+              <div className="stat-value-large">{users.filter(u => u.isOnline).length}</div>
+              <div className="stat-subtitle">Utilisateurs connectés</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Panneau de contrôle rapide */}
+      <div className="quick-controls-panel">
+        <h4><i className="fas fa-sliders-h"></i> Contrôles Rapides</h4>
+        <div className="quick-controls-grid">
+          <button 
+            className={`quick-control-btn ${autoCenter ? 'active' : ''}`}
+            onClick={() => setAutoCenter(!autoCenter)}
+            title="Auto-centrage"
+          >
+            <i className="fas fa-crosshairs"></i>
+            <span>Auto-centrage</span>
+          </button>
+          
+          <button 
+            className={`quick-control-btn ${showTracks ? 'active' : ''}`}
+            onClick={() => setShowTracks(!showTracks)}
+            title="Afficher les trajectoires"
+          >
+            <i className="fas fa-route"></i>
+            <span>Trajectoires</span>
+          </button>
+          
+          <button 
+            className={`quick-control-btn ${showEmployeePositions ? 'active' : ''}`}
+            onClick={() => setShowEmployeePositions(!showEmployeePositions)}
+            title="Afficher les positions employés"
+          >
+            <i className="fas fa-users"></i>
+            <span>Employés</span>
+          </button>
+          
+          <button 
+            className="quick-control-btn"
+            onClick={() => {
+              setSelectedUsers(new Set(users.map(u => u._id)));
+            }}
+            title="Sélectionner tous"
+          >
+            <i className="fas fa-check-double"></i>
+            <span>Tout sélectionner</span>
+          </button>
+          
+          <button 
+            className="quick-control-btn"
+            onClick={() => {
+              setSelectedUsers(new Set());
+            }}
+            title="Désélectionner tous"
+          >
+            <i className="fas fa-times"></i>
+            <span>Tout désélectionner</span>
+          </button>
+          
+          <button 
+            className="quick-control-btn"
+            onClick={() => {
+              if (mapInstance) {
+                const center = mapInstance.getCenter();
+                const zoom = mapInstance.getZoom();
+                persistentStorage.set(STORAGE_KEYS.MAP_CENTER, [center.lat, center.lng]);
+                persistentStorage.set(STORAGE_KEYS.MAP_ZOOM, zoom);
+                // Afficher une notification de sauvegarde
+                const notification = document.createElement('div');
+                notification.className = 'save-notification';
+                notification.innerHTML = '<i class="fas fa-save"></i> Vue sauvegardée';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2000);
+              }
+            }}
+            title="Sauvegarder la vue actuelle"
+          >
+            <i className="fas fa-save"></i>
+            <span>Sauvegarder vue</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Panneau d'informations système */}
+      <div className="system-info-panel">
+        <div className="system-info-header">
+          <h4><i className="fas fa-info-circle"></i> Informations Système</h4>
+          <button 
+            className="minimize-btn"
+            onClick={() => {
+              const panel = document.querySelector('.system-info-panel');
+              panel.classList.toggle('minimized');
+            }}
+          >
+            <i className="fas fa-minus"></i>
+          </button>
+        </div>
+        <div className="system-info-content">
+          <div className="info-item">
+            <span className="info-label">Version GPS:</span>
+            <span className="info-value">3D Pro v2.1</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">API Météo:</span>
+            <span className="info-value">OpenWeatherMap</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Géocodage:</span>
+            <span className="info-value">Nominatim OSM</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Fréquence MAJ:</span>
+            <span className="info-value">800ms</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Précision requise:</span>
+            <span className="info-value">Haute</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Cache positions:</span>
+            <span className="info-value">200 points max</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay d'aide contextuelle */}
+      <div className="contextual-help-overlay" style={{ display: 'none' }}>
+        <div className="help-content">
+          <h3><i className="fas fa-question-circle"></i> Aide GPS 3D</h3>
+          <div className="help-sections">
+            <div className="help-section">
+              <h4>Navigation</h4>
+              <ul>
+                <li>Clic + glisser pour déplacer la carte</li>
+                <li>Molette pour zoomer</li>
+                <li>Double-clic pour centrer et zoomer</li>
+                <li>Clic droit sur un marqueur pour options</li>
+              </ul>
+            </div>
+            <div className="help-section">
+              <h4>Marqueurs</h4>
+              <ul>
+                <li>🛰️ GPS temps réel actif</li>
+                <li>👤 Position fixe employé</li>
+                <li>🏢 Lieu d'intérêt</li>
+                <li>☁️ Zone météorologique</li>
+              </ul>
+            </div>
+            <div className="help-section">
+              <h4>Fonctionnalités</h4>
+              <ul>
+                <li>Suivi GPS temps réel haute précision</li>
+                <li>Trajectoires avec distances</li>
+                <li>Météo en temps réel</li>
+                <li>Descriptions 3D des lieux</li>
+                <li>Auto-centrage intelligent</li>
+              </ul>
+            </div>
+          </div>
+          <button 
+            className="close-help-btn"
+            onClick={() => {
+              document.querySelector('.contextual-help-overlay').style.display = 'none';
+            }}
+          >
+            <i className="fas fa-times"></i>
+            Fermer
+          </button>
+        </div>
+      </div>
+
+      {/* Bouton d'aide flottant */}
+      <button 
+        className="floating-help-btn"
+        onClick={() => {
+          document.querySelector('.contextual-help-overlay').style.display = 'flex';
+        }}
+        title="Aide et documentation"
+      >
+        <i className="fas fa-question-circle"></i>
+      </button>
+
+      {/* Indicateur de connexion réseau */}
+      <div className="network-status-indicator">
+        <div className={`network-dot ${navigator.onLine ? 'online' : 'offline'}`}></div>
+        <span className="network-text">
+          {navigator.onLine ? 'En ligne' : 'Hors ligne'}
+        </span>
+      </div>
+
+      {/* Toast notifications container */}
+      <div id="toast-container" className="toast-container"></div>
     </div>
   );
 };
