@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap, Tooltip } from 'react-leaflet';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UserContext } from '../context/UserContext';
 import $ from 'jquery';
@@ -28,7 +28,20 @@ const STORAGE_KEYS = {
   GPS_TRACKS: 'real_gps_tracks',
   MAP_CENTER: 'real_gps_map_center',
   MAP_ZOOM: 'real_gps_map_zoom',
-  USER_PERMISSIONS: 'real_gps_permissions'
+  USER_PERMISSIONS: 'real_gps_permissions',
+  WEATHER_CACHE: 'weather_cache'
+};
+
+// Icônes météo
+const WEATHER_ICONS = {
+  clear: '☀️',
+  clouds: '☁️',
+  rain: '🌧️',
+  snow: '❄️',
+  thunderstorm: '⛈️',
+  drizzle: '🌦️',
+  mist: '🌫️',
+  fog: '🌫️'
 };
 
 // Utilitaires de stockage persistant
@@ -50,11 +63,64 @@ const persistentStorage = {
   }
 };
 
-// API de géocodage inverse pour les adresses réelles
-const getRealAddress = async (lat, lng) => {
+// API météo
+const getWeatherData = async (lat, lng) => {
+  const API_KEY = '6e84ab71e5f1dc3b1fc3e3f9e8f7b84e'; // Remplacez par votre clé API OpenWeatherMap
+  const cacheKey = `weather_${lat.toFixed(2)}_${lng.toFixed(2)}`;
+  const cached = persistentStorage.get(STORAGE_KEYS.WEATHER_CACHE);
+  
+  // Vérifier le cache (valide 10 minutes)
+  if (cached && cached[cacheKey] && (Date.now() - cached[cacheKey].timestamp) < 600000) {
+    return cached[cacheKey].data;
+  }
+  
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${API_KEY}&units=metric&lang=fr`
+    );
+    
+    if (!response.ok) throw new Error('Erreur API météo');
+    
+    const data = await response.json();
+    const weatherData = {
+      temperature: Math.round(data.main.temp),
+      description: data.weather[0].description,
+      main: data.weather[0].main.toLowerCase(),
+      icon: WEATHER_ICONS[data.weather[0].main.toLowerCase()] || '🌤️',
+      humidity: data.main.humidity,
+      windSpeed: Math.round(data.wind.speed * 3.6), // m/s to km/h
+      pressure: data.main.pressure
+    };
+    
+    // Mettre à jour le cache
+    const newCache = cached || {};
+    newCache[cacheKey] = {
+      data: weatherData,
+      timestamp: Date.now()
+    };
+    persistentStorage.set(STORAGE_KEYS.WEATHER_CACHE, newCache);
+    
+    return weatherData;
+  } catch (error) {
+    console.warn('Erreur météo:', error);
+    return {
+      temperature: '--',
+      description: 'Non disponible',
+      main: 'unknown',
+      icon: '🌤️',
+      humidity: 0,
+      windSpeed: 0,
+      pressure: 0
+    };
+  }
+};
+
+// API de géocodage inverse avec descriptions 3D des lieux
+const getRealAddress = async (lat, lng) => {
+  try {
+    // Requête avec détails étendus
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&extratags=1&namedetails=1`,
       {
         headers: {
           'User-Agent': 'RealTimeGPS-App/1.0'
@@ -66,6 +132,10 @@ const getRealAddress = async (lat, lng) => {
     
     const data = await response.json();
     const address = data.address || {};
+    const tags = data.extratags || {};
+    
+    // Description enrichie 3D du lieu
+    const description3D = generateLocationDescription(address, tags, data);
     
     return {
       fullAddress: data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
@@ -74,7 +144,11 @@ const getRealAddress = async (lat, lng) => {
       city: address.city || address.town || address.village || '',
       postal_code: address.postcode || '',
       country: address.country || 'France',
-      amenity: address.amenity || address.shop || address.office || null
+      amenity: address.amenity || address.shop || address.office || null,
+      description3D: description3D,
+      category: data.category || 'place',
+      type: data.type || 'unknown',
+      importance: data.importance || 0
     };
   } catch (error) {
     console.warn('Erreur géocodage:', error);
@@ -85,9 +159,81 @@ const getRealAddress = async (lat, lng) => {
       city: 'Localisation GPS',
       postal_code: '',
       country: 'France',
-      amenity: null
+      amenity: null,
+      description3D: {
+        title: 'Position GPS',
+        description: 'Localisation en cours de résolution...',
+        details: []
+      }
     };
   }
+};
+
+// Génération de descriptions 3D enrichies
+const generateLocationDescription = (address, tags, data) => {
+  const descriptions = {
+    building: {
+      title: '🏢 Bâtiment',
+      description: 'Structure architecturale',
+      details: []
+    },
+    shop: {
+      title: '🛍️ Commerce',
+      description: 'Zone commerciale active',
+      details: ['Activité commerciale', 'Zone piétonne possible']
+    },
+    restaurant: {
+      title: '🍽️ Restaurant',
+      description: 'Établissement de restauration',
+      details: ['Service de restauration', 'Zone de convivialité']
+    },
+    hospital: {
+      title: '🏥 Établissement de santé',
+      description: 'Infrastructure médicale',
+      details: ['Services de santé', 'Zone d\'urgence possible']
+    },
+    school: {
+      title: '🎓 Établissement scolaire',
+      description: 'Zone éducative',
+      details: ['Activité scolaire', 'Zone de circulation dense aux heures de pointe']
+    },
+    park: {
+      title: '🌳 Espace vert',
+      description: 'Zone naturelle et de détente',
+      details: ['Espace de loisirs', 'Végétation dense', 'Air pur']
+    },
+    road: {
+      title: '🛣️ Voie de circulation',
+      description: 'Axe de transport',
+      details: ['Circulation vehiculaire', 'Réseau routier']
+    }
+  };
+
+  const amenity = address.amenity || tags.amenity || data.type;
+  let locationInfo = descriptions[amenity] || {
+    title: '📍 Localisation',
+    description: 'Position géographique',
+    details: []
+  };
+
+  // Enrichir avec les détails spécifiques
+  const details = [...locationInfo.details];
+  
+  if (address.building) details.push(`Bâtiment: ${address.building}`);
+  if (tags.building_levels) details.push(`${tags.building_levels} niveaux`);
+  if (tags.wheelchair === 'yes') details.push('Accessible PMR');
+  if (tags.parking) details.push('Parking disponible');
+  if (tags.opening_hours) details.push(`Horaires: ${tags.opening_hours}`);
+  if (address.postcode) details.push(`Code postal: ${address.postcode}`);
+  
+  // Ajouter le type d'environnement
+  if (address.city) details.push(`Environnement urbain: ${address.city}`);
+  if (address.suburb) details.push(`Quartier: ${address.suburb}`);
+
+  return {
+    ...locationInfo,
+    details: details
+  };
 };
 
 // Formatage sécurisé des dates
@@ -103,50 +249,145 @@ const formatDateTime = (date) => {
   }
 };
 
-// Icône de marqueur GPS réel avancée
-const createRealGPSIcon = (color, userName, isMoving = false, heading = 0, accuracy = 0) => {
+// Icône de marqueur GPS 3D ultra-avancée
+const createRealGPSIcon = (color, userName, isMoving = false, heading = 0, accuracy = 0, weather = null) => {
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const size = accuracy > 50 ? 40 : accuracy > 20 ? 50 : 60;
+  const size = accuracy > 50 ? 45 : accuracy > 20 ? 55 : 70;
   
   return L.divIcon({
     html: `
-      <div class="real-gps-marker ${isMoving ? 'moving' : 'stationary'}" style="
+      <div class="real-gps-marker-3d ${isMoving ? 'moving' : 'stationary'}" style="
         --marker-color: ${color};
         --marker-size: ${size}px;
         transform: rotate(${heading}deg);
       ">
-        <div class="gps-accuracy-ring" style="width: ${Math.max(accuracy * 2, 30)}px; height: ${Math.max(accuracy * 2, 30)}px;"></div>
-        <div class="gps-pulse-ring"></div>
-        <div class="gps-main-marker">
-          <div class="gps-signal-indicator">
-            <div class="signal-wave wave1"></div>
-            <div class="signal-wave wave2"></div>
-            <div class="signal-wave wave3"></div>
+        ${weather ? `
+          <div class="weather-overlay">
+            <span class="weather-icon">${weather.icon}</span>
+            <span class="weather-temp">${weather.temperature}°C</span>
           </div>
-          <div class="gps-user-initials">${initials}</div>
-          <div class="gps-real-badge">
+        ` : ''}
+        
+        <div class="gps-accuracy-ring-3d" style="
+          width: ${Math.max(accuracy * 2, 40)}px; 
+          height: ${Math.max(accuracy * 2, 40)}px;
+        "></div>
+        
+        <div class="gps-pulse-ring-3d pulse-1"></div>
+        <div class="gps-pulse-ring-3d pulse-2"></div>
+        <div class="gps-pulse-ring-3d pulse-3"></div>
+        
+        <div class="gps-main-marker-3d">
+          <div class="gps-signal-indicator-3d">
+            <div class="signal-wave-3d wave1"></div>
+            <div class="signal-wave-3d wave2"></div>
+            <div class="signal-wave-3d wave3"></div>
+            <div class="signal-wave-3d wave4"></div>
+          </div>
+          
+          <div class="gps-user-initials-3d">${initials}</div>
+          
+          <div class="gps-real-badge-3d">
             <i class="fas fa-satellite"></i>
+            <div class="satellite-orbit"></div>
+          </div>
+          
+          <div class="gps-status-lights">
+            <div class="status-light gps-active"></div>
+            <div class="status-light data-active"></div>
+            <div class="status-light connection-active"></div>
           </div>
         </div>
-        <div class="gps-direction-arrow" style="opacity: ${isMoving ? 1 : 0};">
-          <i class="fas fa-location-arrow"></i>
+        
+        <div class="gps-direction-arrow-3d" style="opacity: ${isMoving ? 1 : 0.3};">
+          <i class="fas fa-navigation"></i>
+          <div class="direction-trail"></div>
         </div>
-        <div class="gps-accuracy-text">±${Math.round(accuracy)}m</div>
+        
+        <div class="gps-accuracy-text-3d">
+          <div class="accuracy-value">±${Math.round(accuracy)}m</div>
+          <div class="accuracy-bar">
+            <div class="accuracy-fill" style="width: ${Math.min(100, 100 - (accuracy / 50 * 100))}%"></div>
+          </div>
+        </div>
+        
+        <div class="gps-shadow-3d"></div>
       </div>
     `,
-    className: 'real-gps-container',
+    className: 'real-gps-container-3d',
     iconSize: [size, size],
     iconAnchor: [size/2, size/2]
   });
 };
 
-// Contrôleur de carte intelligent
+// Marqueur de lieu 3D
+const createLocationMarker3D = (description, category) => {
+  const categoryIcons = {
+    building: '🏢',
+    shop: '🛍️',
+    restaurant: '🍽️',
+    hospital: '🏥',
+    school: '🎓',
+    park: '🌳',
+    default: '📍'
+  };
+  
+  const icon = categoryIcons[category] || categoryIcons.default;
+  
+  return L.divIcon({
+    html: `
+      <div class="location-marker-3d ${category}">
+        <div class="location-icon-3d">
+          <span class="location-emoji">${icon}</span>
+        </div>
+        <div class="location-pulse"></div>
+        <div class="location-label">${description.title}</div>
+      </div>
+    `,
+    className: 'location-container-3d',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  });
+};
+
+// Calcul de distance avec mesure précise
+const calculateDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lng2-lng1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+};
+
+// Calcul de l'angle de direction
+const calculateBearing = (lat1, lng1, lat2, lng2) => {
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δλ = (lng2-lng1) * Math.PI/180;
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+  const θ = Math.atan2(y, x);
+  return (θ * 180/Math.PI + 360) % 360;
+};
+
+// Contrôleur de carte intelligent avec météo
 const IntelligentMapController = ({ 
   realTimePositions, 
   autoCenter, 
   selectedUsers, 
   onMapReady,
-  trackingMode 
+  trackingMode,
+  weatherData,
+  locationDescriptions 
 }) => {
   const map = useMap();
   const lastBoundsRef = useRef(null);
@@ -165,15 +406,13 @@ const IntelligentMapController = ({
     
     if (filteredPositions.length === 0) return;
     
-    // Si un seul utilisateur, centrer avec zoom approprié
     if (filteredPositions.length === 1) {
       const position = filteredPositions[0];
-      const zoom = trackingMode === 'close' ? 18 : trackingMode === 'normal' ? 15 : 13;
+      const zoom = trackingMode === 'close' ? 19 : trackingMode === 'normal' ? 16 : 14;
       map.setView([position.lat, position.lng], zoom, { animate: true, duration: 1.5 });
       return;
     }
     
-    // Pour plusieurs utilisateurs, calculer les bornes optimales
     const lats = filteredPositions.map(p => p.lat);
     const lngs = filteredPositions.map(p => p.lng);
     
@@ -182,13 +421,12 @@ const IntelligentMapController = ({
       [Math.max(...lats), Math.max(...lngs)]
     ];
     
-    // Éviter les re-centrages trop fréquents
     const boundsKey = bounds.flat().map(n => n.toFixed(4)).join(',');
     if (lastBoundsRef.current === boundsKey) return;
     lastBoundsRef.current = boundsKey;
     
     map.fitBounds(bounds, { 
-      padding: [50, 50],
+      padding: [80, 80],
       animate: true,
       duration: 2
     });
@@ -206,7 +444,7 @@ const Gps = () => {
   const [selectedUsers, setSelectedUsers] = useState(new Set());
   const [showTracks, setShowTracks] = useState(true);
   const [autoCenter, setAutoCenter] = useState(true);
-  const [trackingMode, setTrackingMode] = useState('normal'); // close, normal, wide
+  const [trackingMode, setTrackingMode] = useState('normal');
   const [controlsVisible, setControlsVisible] = useState(true);
   
   // États GPS
@@ -216,18 +454,23 @@ const Gps = () => {
   const [gpsErrors, setGpsErrors] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   
+  // États météo et descriptions
+  const [weatherData, setWeatherData] = useState({});
+  const [locationDescriptions, setLocationDescriptions] = useState({});
+  const [trackDistances, setTrackDistances] = useState({});
+  
   // États UI
   const [userColors, setUserColors] = useState({});
   const [mapInstance, setMapInstance] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   
-  // Refs pour les watchers GPS
+  // Refs
   const watchersRef = useRef({});
   const addressCacheRef = useRef({});
   const lastUpdateRef = useRef({});
   const controlsTimeoutRef = useRef(null);
 
-  // Récupération des utilisateurs depuis le serveur
+  // Récupération des utilisateurs
   const fetchUsers = useCallback(async () => {
     if (!token) throw new Error('Token manquant');
 
@@ -256,7 +499,6 @@ const Gps = () => {
     }
   }, [token]);
 
-  // React Query pour les utilisateurs
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ['real-gps-users', user?._id],
     queryFn: fetchUsers,
@@ -266,7 +508,7 @@ const Gps = () => {
     retry: 3
   });
 
-  // Initialisation GPS pour un utilisateur
+  // Initialisation GPS avec météo
   const initializeUserGPS = useCallback(async (targetUser) => {
     if (!navigator.geolocation) {
       setGpsErrors(prev => ({
@@ -278,36 +520,38 @@ const Gps = () => {
 
     const options = {
       enableHighAccuracy: true,
-      timeout: 5000, // Timeout réduit pour plus de réactivité
-      maximumAge: 1000 // Cache très court pour des données fraîches
+      timeout: 5000,
+      maximumAge: 500
     };
 
     const onSuccess = async (position) => {
       const coords = position.coords;
       const timestamp = new Date();
       
-      // Éviter les mises à jour trop fréquentes (< 1 seconde)
       const lastUpdate = lastUpdateRef.current[targetUser._id];
-      if (lastUpdate && (timestamp - lastUpdate) < 1000) return;
+      if (lastUpdate && (timestamp - lastUpdate) < 800) return;
       lastUpdateRef.current[targetUser._id] = timestamp;
       
-      // Calculer la vitesse et la direction
+      // Calculs avancés
       const prevPosition = realTimePositions[targetUser._id];
       let speed = coords.speed || 0;
       let heading = coords.heading || 0;
-      let isMoving = speed > 1; // Plus de 1 km/h = en mouvement
+      let isMoving = speed > 0.5;
+      let distance = 0;
       
-      if (prevPosition && !coords.speed) {
+      if (prevPosition) {
         const timeDiff = (timestamp - new Date(prevPosition.timestamp)) / 1000;
         if (timeDiff > 0) {
-          const distance = calculateDistance(
+          distance = calculateDistance(
             prevPosition.lat, prevPosition.lng,
             coords.latitude, coords.longitude
           );
-          speed = (distance / timeDiff) * 3.6; // Convert m/s to km/h
-          isMoving = speed > 1;
+          if (!coords.speed) {
+            speed = (distance / timeDiff) * 3.6;
+          }
+          isMoving = speed > 0.5;
           
-          if (distance > 5) { // Si déplacement significatif
+          if (distance > 2) {
             heading = calculateBearing(
               prevPosition.lat, prevPosition.lng,
               coords.latitude, coords.longitude
@@ -316,7 +560,7 @@ const Gps = () => {
         }
       }
 
-      // Géocodage inversé avec cache
+      // Géocodage avec description 3D
       const cacheKey = `${coords.latitude.toFixed(4)}_${coords.longitude.toFixed(4)}`;
       let address = addressCacheRef.current[cacheKey];
       
@@ -324,11 +568,36 @@ const Gps = () => {
         try {
           address = await getRealAddress(coords.latitude, coords.longitude);
           addressCacheRef.current[cacheKey] = address;
+          
+          // Stocker la description du lieu
+          setLocationDescriptions(prev => ({
+            ...prev,
+            [cacheKey]: address.description3D
+          }));
         } catch (error) {
           address = {
             fullAddress: `Position GPS ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
-            city: 'Localisation en cours...'
+            city: 'Localisation en cours...',
+            description3D: {
+              title: 'Position GPS',
+              description: 'Localisation en cours...',
+              details: []
+            }
           };
+        }
+      }
+
+      // Récupération de la météo
+      let weather = weatherData[cacheKey];
+      if (!weather) {
+        try {
+          weather = await getWeatherData(coords.latitude, coords.longitude);
+          setWeatherData(prev => ({
+            ...prev,
+            [cacheKey]: weather
+          }));
+        } catch (error) {
+          weather = null;
         }
       }
 
@@ -342,21 +611,35 @@ const Gps = () => {
         timestamp: timestamp.toISOString(),
         isMoving: isMoving,
         address: address,
-        user: targetUser
+        weather: weather,
+        user: targetUser,
+        distance: distance
       };
 
-      // Mettre à jour la position en temps réel
       setRealTimePositions(prev => ({
         ...prev,
         [targetUser._id]: newPosition
       }));
 
-      // Ajouter au track de l'utilisateur
+      // Mise à jour des tracks avec calcul de distance totale
       setUserTracks(prev => {
         const currentTrack = prev[targetUser._id] || [];
-        const newTrack = [...currentTrack, newPosition].slice(-100); // Garder 100 derniers points
+        const newTrack = [...currentTrack, newPosition].slice(-200);
         
-        // Sauvegarder en localStorage
+        // Calcul de la distance totale du trajet
+        let totalDistance = 0;
+        for (let i = 1; i < newTrack.length; i++) {
+          totalDistance += calculateDistance(
+            newTrack[i-1].lat, newTrack[i-1].lng,
+            newTrack[i].lat, newTrack[i].lng
+          );
+        }
+        
+        setTrackDistances(prevDist => ({
+          ...prevDist,
+          [targetUser._id]: totalDistance
+        }));
+        
         persistentStorage.set(STORAGE_KEYS.GPS_TRACKS, {
           ...prev,
           [targetUser._id]: newTrack
@@ -368,7 +651,6 @@ const Gps = () => {
         };
       });
 
-      // Supprimer l'erreur s'il y en avait une
       setGpsErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[targetUser._id];
@@ -398,8 +680,7 @@ const Gps = () => {
           break;
         case error.TIMEOUT:
           errorMessage = 'Timeout GPS - Nouvelle tentative...';
-          // Ne pas considérer le timeout comme une erreur fatale
-          setTimeout(() => initializeUserGPS(targetUser), 2000);
+          setTimeout(() => initializeUserGPS(targetUser), 3000);
           return;
         default:
           errorMessage = `Erreur GPS ${error.code}`;
@@ -412,53 +693,21 @@ const Gps = () => {
       }));
     };
 
-    // Arrêter le watcher précédent s'il existe
     if (watchersRef.current[targetUser._id]) {
       navigator.geolocation.clearWatch(watchersRef.current[targetUser._id]);
     }
 
-    // Position initiale
     navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
-
-    // Surveillance continue
+    
     watchersRef.current[targetUser._id] = navigator.geolocation.watchPosition(
       onSuccess, 
       onError, 
       options
     );
 
-  }, [realTimePositions]);
+  }, [realTimePositions, weatherData]);
 
-  // Calcul de distance entre deux points GPS
-  const calculateDistance = (lat1, lng1, lat2, lng2) => {
-    const R = 6371e3; // Rayon de la Terre en mètres
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-  };
-
-  // Calcul de l'angle de direction
-  const calculateBearing = (lat1, lng1, lat2, lng2) => {
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
-
-    const y = Math.sin(Δλ) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-
-    const θ = Math.atan2(y, x);
-    return (θ * 180/Math.PI + 360) % 360;
-  };
-
-  // Attribution des couleurs aux utilisateurs
+  // Attribution des couleurs
   useEffect(() => {
     if (users.length > 0) {
       const colors = {};
@@ -470,21 +719,18 @@ const Gps = () => {
     }
   }, [users]);
 
-  // Initialisation GPS pour tous les utilisateurs
+  // Initialisation GPS
   useEffect(() => {
     if (users.length > 0 && user) {
       setConnectionStatus('initializing');
       
-      // Identifier l'utilisateur actuel
       const current = users.find(u => u._id === user._id);
       if (current) {
         setCurrentUser(current);
       }
 
-      // Initialiser GPS pour tous les utilisateurs (en réalité, seul l'utilisateur actuel aura sa vraie position)
       users.forEach(targetUser => {
         if (targetUser._id === user._id) {
-          // GPS réel pour l'utilisateur actuel
           initializeUserGPS(targetUser);
         }
       });
@@ -492,7 +738,6 @@ const Gps = () => {
       setConnectionStatus('connected');
     }
 
-    // Nettoyage
     return () => {
       Object.values(watchersRef.current).forEach(watchId => {
         if (watchId) {
@@ -511,7 +756,7 @@ const Gps = () => {
     }
     controlsTimeoutRef.current = setTimeout(() => {
       setControlsVisible(false);
-    }, 10000); // 10 secondes
+    }, 15000);
   }, []);
 
   useEffect(() => {
@@ -523,7 +768,7 @@ const Gps = () => {
     };
   }, [resetControlsTimeout]);
 
-  // Gestion des raccourcis clavier
+  // Raccourcis clavier
   useEffect(() => {
     const handleKeyPress = (event) => {
       switch(event.code) {
@@ -555,7 +800,6 @@ const Gps = () => {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, []);
 
-  // Retry GPS pour un utilisateur
   const retryUserGPS = useCallback((targetUser) => {
     setGpsErrors(prev => {
       const newErrors = { ...prev };
@@ -565,33 +809,47 @@ const Gps = () => {
     initializeUserGPS(targetUser);
   }, [initializeUserGPS]);
 
-  // Filtrage des positions actives
   const activePositions = Object.fromEntries(
     Object.entries(realTimePositions).filter(([userId]) => selectedUsers.has(userId))
   );
 
-  // Statistiques en temps réel
   const stats = {
     totalUsers: users.length,
     activeGPS: Object.keys(realTimePositions).length,
     moving: Object.values(activePositions).filter(p => p.isMoving).length,
     avgAccuracy: Object.values(activePositions).length > 0 
       ? Math.round(Object.values(activePositions).reduce((sum, p) => sum + p.accuracy, 0) / Object.values(activePositions).length)
-      : 0
+      : 0,
+    totalDistance: Object.values(trackDistances).reduce((sum, dist) => sum + dist, 0)
   };
 
   if (isLoading) {
     return (
-      <div className="gps-loading-screen">
-        <div className="loading-animation">
-          <div className="gps-satellite-icon">
+      <div className="gps-loading-screen-3d">
+        <div className="loading-animation-3d">
+          <div className="gps-satellite-icon-3d">
             <i className="fas fa-satellite-dish"></i>
+            <div className="satellite-orbit-loading"></div>
           </div>
-          <div className="loading-text">
-            <h2>Initialisation GPS</h2>
-            <p>Connexion aux satellites en cours...</p>
-            <div className="loading-progress">
-              <div className="progress-bar"></div>
+          <div className="loading-text-3d">
+            <h2>Initialisation GPS Avancé</h2>
+            <p>Connexion aux satellites et services météo...</p>
+            <div className="loading-progress-3d">
+              <div className="progress-bar-3d"></div>
+            </div>
+            <div className="loading-stats">
+              <div className="loading-stat">
+                <i className="fas fa-satellite"></i>
+                <span>Géolocalisation</span>
+              </div>
+              <div className="loading-stat">
+                <i className="fas fa-cloud-sun"></i>
+                <span>Données météo</span>
+              </div>
+              <div className="loading-stat">
+                <i className="fas fa-map"></i>
+                <span>Cartographie 3D</span>
+              </div>
             </div>
           </div>
         </div>
@@ -601,11 +859,11 @@ const Gps = () => {
 
   if (!user) {
     return (
-      <div className="gps-error-screen">
-        <div className="error-content">
+      <div className="gps-error-screen-3d">
+        <div className="error-content-3d">
           <i className="fas fa-user-lock"></i>
-          <h3>Accès GPS Restreint</h3>
-          <p>Authentification requise pour accéder au système GPS.</p>
+          <h3>Accès GPS Sécurisé</h3>
+          <p>Authentification requise pour accéder au système de géolocalisation avancé.</p>
         </div>
       </div>
     );
@@ -613,16 +871,15 @@ const Gps = () => {
 
   return (
     <div 
-      className="gps-realtime-container"
+      className="gps-realtime-container-3d"
       onMouseMove={resetControlsTimeout}
       onClick={resetControlsTimeout}
     >
-      {/* Carte GPS en plein écran */}
-      <div className="gps-realtime-map">
+      <div className="gps-realtime-map-3d">
         <MapContainer
           center={[46.603354, 1.888334]}
           zoom={6}
-          className="leaflet-realtime-map"
+          className="leaflet-realtime-map-3d"
           style={{ height: '100vh', width: '100vw' }}
           zoomControl={false}
           attributionControl={false}
@@ -644,46 +901,117 @@ const Gps = () => {
             selectedUsers={selectedUsers}
             onMapReady={setMapInstance}
             trackingMode={trackingMode}
+            weatherData={weatherData}
+            locationDescriptions={locationDescriptions}
           />
 
-          {/* Tracks GPS des utilisateurs */}
+          {/* Trajectoires GPS en jaune avec distances */}
           {showTracks && Object.entries(userTracks).map(([userId, track]) => {
             if (!selectedUsers.has(userId) || track.length < 2) return null;
             
             const trackPoints = track.map(point => [point.lat, point.lng]);
+            const totalDistance = trackDistances[userId] || 0;
             
             return (
-              <Polyline
-                key={`track-${userId}`}
-                positions={trackPoints}
-                color={userColors[userId]}
-                weight={4}
-                opacity={0.8}
-                smoothFactor={1}
-                className="gps-track-line"
-              />
+              <React.Fragment key={`track-${userId}`}>
+                <Polyline
+                  positions={trackPoints}
+                  color="#FFD700"
+                  weight={6}
+                  opacity={0.9}
+                  smoothFactor={2}
+                  className="gps-track-line-3d"
+                >
+                  <Tooltip permanent direction="center" className="track-distance-tooltip">
+                    <div className="distance-info">
+                      <i className="fas fa-route"></i>
+                      <span>{(totalDistance / 1000).toFixed(2)} km</span>
+                    </div>
+                  </Tooltip>
+                </Polyline>
+                
+                {/* Points de repère sur le trajet */}
+                {track.filter((_, index) => index % 10 === 0).map((point, index) => (
+                  <Circle
+                    key={`waypoint-${userId}-${index}`}
+                    center={[point.lat, point.lng]}
+                    radius={2}
+                    color="#FFD700"
+                    fillColor="#FFD700"
+                    fillOpacity={0.8}
+                    weight={2}
+                  />
+                ))}
+              </React.Fragment>
             );
           })}
 
-          {/* Marqueurs GPS temps réel */}
+          {/* Marqueurs de lieux avec descriptions 3D */}
+          {Object.entries(locationDescriptions).map(([key, description]) => {
+            const [lat, lng] = key.split('_').map(Number);
+            if (!lat || !lng) return null;
+            
+            return (
+              <Marker
+                key={`location-${key}`}
+                position={[lat, lng]}
+                icon={createLocationMarker3D(description, description.category)}
+                zIndexOffset={50}
+              >
+                <Popup className="location-popup-3d">
+                  <div className="location-popup-content-3d">
+                    <h4>{description.title}</h4>
+                    <p className="location-description">{description.description}</p>
+                    {description.details.length > 0 && (
+                      <ul className="location-details">
+                        {description.details.map((detail, index) => (
+                          <li key={index}>{detail}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* Marqueurs GPS temps réel avec météo */}
           {Object.entries(activePositions).map(([userId, position]) => {
             const userData = users.find(u => u._id === userId);
             if (!userData) return null;
 
+            const cacheKey = `${position.lat.toFixed(4)}_${position.lng.toFixed(4)}`;
+            const weather = weatherData[cacheKey];
+
             return (
-              <React.Fragment key={`gps-${userId}`}>
-                {/* Cercle de précision */}
+              <React.Fragment key={`gps-3d-${userId}`}>
+                {/* Zone météo */}
+                {weather && (
+                  <Circle
+                    center={[position.lat, position.lng]}
+                    radius={500}
+                    color={weather.main === 'rain' ? '#4A90E2' : weather.main === 'clear' ? '#F5A623' : '#7ED321'}
+                    fillColor={weather.main === 'rain' ? '#4A90E2' : weather.main === 'clear' ? '#F5A623' : '#7ED321'}
+                    fillOpacity={0.1}
+                    weight={2}
+                    opacity={0.3}
+                    className="weather-zone"
+                  />
+                )}
+                
+                               {/* Cercle de précision amélioré */}
                 <Circle
                   center={[position.lat, position.lng]}
                   radius={position.accuracy}
                   color={userColors[userId]}
                   fillColor={userColors[userId]}
-                  fillOpacity={0.1}
-                  weight={2}
-                  opacity={0.6}
+                  fillOpacity={0.15}
+                  weight={3}
+                  opacity={0.7}
+                  className="accuracy-circle-3d"
                 />
                 
-                {/* Marqueur principal */}
+                {/* Marqueur principal 3D */}
                 <Marker
                   position={[position.lat, position.lng]}
                   icon={createRealGPSIcon(
@@ -691,36 +1019,39 @@ const Gps = () => {
                     `${userData.firstName} ${userData.lastName}`,
                     position.isMoving,
                     position.heading,
-                    position.accuracy
+                    position.accuracy,
+                    weather
                   )}
-                  zIndexOffset={position.user._id === user?._id ? 1000 : 100}
+                  zIndexOffset={position.user._id === user?._id ? 2000 : 500}
                 >
-                  <Popup maxWidth={500} className="gps-realtime-popup">
-                    <div className="popup-realtime-content">
-                      <div className="popup-header-realtime">
+                  <Popup maxWidth={600} className="gps-realtime-popup-3d">
+                    <div className="popup-realtime-content-3d">
+                      <div className="popup-header-realtime-3d">
                         <div 
-                          className="user-avatar-realtime"
+                          className="user-avatar-realtime-3d"
                           style={{ backgroundColor: userColors[userId] }}
                         >
-                          {userData.firstName[0]}{userData.lastName[0]}
+                          <span className="user-initials">{userData.firstName[0]}{userData.lastName[0]}</span>
+                          <div className="avatar-glow"></div>
                         </div>
-                        <div className="popup-user-info">
+                        <div className="popup-user-info-3d">
                           <h4>
                             {userData.firstName} {userData.lastName}
                             {userData._id === user?._id && (
-                              <span className="current-user-tag">Vous</span>
+                              <span className="current-user-tag-3d">Vous</span>
                             )}
                           </h4>
-                          <span className={`role-tag ${userData.role}`}>
+                          <span className={`role-tag-3d ${userData.role}`}>
                             {userData.role}
                           </span>
-                          <div className={`movement-status ${position.isMoving ? 'moving' : 'stationary'}`}>
-                            <i className={`fas ${position.isMoving ? 'fa-walking' : 'fa-map-pin'}`}></i>
+                          <div className={`movement-status-3d ${position.isMoving ? 'moving' : 'stationary'}`}>
+                            <i className={`fas ${position.isMoving ? 'fa-running' : 'fa-map-pin'}`}></i>
                             {position.isMoving ? 'En déplacement' : 'Stationnaire'}
+                            <span className="speed-indicator">{Math.round(position.speed)} km/h</span>
                           </div>
                         </div>
-                        <div className="gps-quality-indicator">
-                          <div className={`signal-quality ${
+                        <div className="gps-quality-indicator-3d">
+                          <div className={`signal-quality-3d ${
                             position.accuracy < 5 ? 'excellent' :
                             position.accuracy < 15 ? 'good' :
                             position.accuracy < 30 ? 'fair' : 'poor'
@@ -731,20 +1062,48 @@ const Gps = () => {
                         </div>
                       </div>
                       
-                      <div className="location-info-realtime">
-                        <div className="address-section">
-                          <h5><i className="fas fa-map-marker-alt"></i> Localisation GPS</h5>
-                          <div className="address-details">
-                            <p className="full-address">{position.address.fullAddress}</p>
+                      {/* Section météo */}
+                      {weather && (
+                        <div className="weather-section-3d">
+                          <h5><i className="fas fa-cloud-sun"></i> Conditions Météo</h5>
+                          <div className="weather-display">
+                            <div className="weather-main">
+                              <span className="weather-icon-large">{weather.icon}</span>
+                              <div className="weather-temp-large">{weather.temperature}°C</div>
+                              <div className="weather-desc">{weather.description}</div>
+                            </div>
+                            <div className="weather-details">
+                              <div className="weather-detail">
+                                <i className="fas fa-tint"></i>
+                                <span>Humidité: {weather.humidity}%</span>
+                              </div>
+                              <div className="weather-detail">
+                                <i className="fas fa-wind"></i>
+                                <span>Vent: {weather.windSpeed} km/h</span>
+                              </div>
+                              <div className="weather-detail">
+                                <i className="fas fa-thermometer-half"></i>
+                                <span>Pression: {weather.pressure} hPa</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="location-info-realtime-3d">
+                        <div className="address-section-3d">
+                          <h5><i className="fas fa-map-marker-alt"></i> Localisation 3D</h5>
+                          <div className="address-details-3d">
+                            <p className="full-address-3d">{position.address.fullAddress}</p>
                             {position.address.street && (
-                              <p className="street">{position.address.street}</p>
+                              <p className="street-3d">{position.address.street}</p>
                             )}
-                            <p className="city-district">
+                            <p className="city-district-3d">
                               {position.address.city}
                               {position.address.district && `, ${position.address.district}`}
                             </p>
                             {position.address.amenity && (
-                              <p className="amenity">
+                              <p className="amenity-3d">
                                 <i className="fas fa-info-circle"></i>
                                 {position.address.amenity}
                               </p>
@@ -752,40 +1111,63 @@ const Gps = () => {
                           </div>
                         </div>
                         
-                        <div className="gps-metrics-realtime">
-                          <h5><i className="fas fa-satellite"></i> Données GPS</h5>
-                          <div className="metrics-grid-realtime">
-                            <div className="metric-item">
+                        {/* Description 3D du lieu */}
+                        {position.address.description3D && (
+                          <div className="location-description-3d">
+                            <h5><i className="fas fa-cube"></i> Description 3D</h5>
+                            <div className="description-content">
+                              <h6>{position.address.description3D.title}</h6>
+                              <p>{position.address.description3D.description}</p>
+                              {position.address.description3D.details.length > 0 && (
+                                <ul className="location-features">
+                                  {position.address.description3D.details.map((detail, index) => (
+                                    <li key={index}>{detail}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="gps-metrics-realtime-3d">
+                          <h5><i className="fas fa-satellite"></i> Données GPS Avancées</h5>
+                          <div className="metrics-grid-realtime-3d">
+                            <div className="metric-item-3d">
                               <i className="fas fa-crosshairs"></i>
                               <span className="metric-label">Précision</span>
                               <span className="metric-value">±{Math.round(position.accuracy)}m</span>
                             </div>
-                            <div className="metric-item">
+                            <div className="metric-item-3d">
                               <i className="fas fa-tachometer-alt"></i>
                               <span className="metric-label">Vitesse</span>
                               <span className="metric-value">{Math.round(position.speed)} km/h</span>
                             </div>
-                            <div className="metric-item">
+                            <div className="metric-item-3d">
                               <i className="fas fa-compass"></i>
                               <span className="metric-label">Direction</span>
                               <span className="metric-value">{Math.round(position.heading)}°</span>
                             </div>
                             {position.altitude && (
-                              <div className="metric-item">
+                              <div className="metric-item-3d">
                                 <i className="fas fa-mountain"></i>
                                 <span className="metric-label">Altitude</span>
                                 <span className="metric-value">{Math.round(position.altitude)}m</span>
                               </div>
                             )}
-                            <div className="metric-item">
+                            <div className="metric-item-3d">
                               <i className="fas fa-clock"></i>
                               <span className="metric-label">Dernière MAJ</span>
                               <span className="metric-value">{formatDateTime(position.timestamp)}</span>
                             </div>
-                            <div className="metric-item">
+                            <div className="metric-item-3d">
+                              <i className="fas fa-route"></i>
+                              <span className="metric-label">Distance parcourue</span>
+                              <span className="metric-value">{((trackDistances[userId] || 0) / 1000).toFixed(2)} km</span>
+                            </div>
+                            <div className="metric-item-3d">
                               <i className="fas fa-map"></i>
                               <span className="metric-label">Coordonnées</span>
-                              <span className="metric-value coordinates-text">
+                              <span className="metric-value coordinates-text-3d">
                                 {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
                               </span>
                             </div>
@@ -801,83 +1183,90 @@ const Gps = () => {
         </MapContainer>
       </div>
 
-      {/* Interface overlay avec contrôles */}
-      <div className={`gps-interface-overlay ${controlsVisible ? 'visible' : 'hidden'}`}>
+      {/* Interface overlay avec contrôles 3D */}
+      <div className={`gps-interface-overlay-3d ${controlsVisible ? 'visible' : 'hidden'}`}>
         {/* Header avec statut GPS */}
-        <div className="gps-header-realtime">
-          <div className="header-info">
+        <div className="gps-header-realtime-3d">
+          <div className="header-info-3d">
             <h1>
               <i className="fas fa-satellite"></i>
-              GPS Temps Réel
-              <div className="live-indicator">
-                <span className="live-dot"></span>
+              GPS Temps Réel 3D
+              <div className="live-indicator-3d">
+                <span className="live-dot-3d"></span>
                 LIVE
               </div>
             </h1>
-            <div className="connection-status">
-              <div className={`status-indicator ${connectionStatus}`}>
-                <div className="status-dot"></div>
+            <div className="connection-status-3d">
+              <div className={`status-indicator-3d ${connectionStatus}`}>
+                <div className="status-dot-3d"></div>
                 <span>
                   {connectionStatus === 'connected' ? 'GPS Connecté' :
                    connectionStatus === 'initializing' ? 'Initialisation...' :
                    'Connexion GPS'}
                 </span>
               </div>
-              <div className="current-time">
+              <div className="current-time-3d">
                 {new Date().toLocaleTimeString('fr-FR')}
               </div>
             </div>
           </div>
           
-          <div className="stats-realtime">
-            <div className="stat-card">
-              <div className="stat-icon"><i className="fas fa-users"></i></div>
-              <div className="stat-content">
-                <div className="stat-number">{stats.activeGPS}</div>
-                <div className="stat-label">GPS Actif</div>
+          <div className="stats-realtime-3d">
+            <div className="stat-card-3d">
+              <div className="stat-icon-3d"><i className="fas fa-users"></i></div>
+              <div className="stat-content-3d">
+                <div className="stat-number-3d">{stats.activeGPS}</div>
+                <div className="stat-label-3d">GPS Actifs</div>
               </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-icon"><i className="fas fa-walking"></i></div>
-              <div className="stat-content">
-                <div className="stat-number">{stats.moving}</div>
-                <div className="stat-label">En mouvement</div>
+            <div className="stat-card-3d">
+              <div className="stat-icon-3d"><i className="fas fa-running"></i></div>
+              <div className="stat-content-3d">
+                <div className="stat-number-3d">{stats.moving}</div>
+                <div className="stat-label-3d">En mouvement</div>
               </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-icon"><i class="fas fa-crosshairs"></i></div>
-              <div className="stat-content">
-                <div className="stat-number">±{stats.avgAccuracy}m</div>
-                <div className="stat-label">Précision moy.</div>
+            <div className="stat-card-3d">
+              <div className="stat-icon-3d"><i className="fas fa-crosshairs"></i></div>
+              <div className="stat-content-3d">
+                <div className="stat-number-3d">±{stats.avgAccuracy}m</div>
+                <div className="stat-label-3d">Précision moy.</div>
+              </div>
+            </div>
+            <div className="stat-card-3d">
+              <div className="stat-icon-3d"><i className="fas fa-route"></i></div>
+              <div className="stat-content-3d">
+                <div className="stat-number-3d">{(stats.totalDistance / 1000).toFixed(1)}km</div>
+                <div className="stat-label-3d">Distance totale</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Contrôles de carte */}
-        <div className="gps-map-controls">
-          <div className="controls-section">
-            <label className="control-toggle">
+        {/* Contrôles de carte 3D */}
+        <div className="gps-map-controls-3d">
+          <div className="controls-section-3d">
+            <label className="control-toggle-3d">
               <input
                 type="checkbox"
                 checked={autoCenter}
                 onChange={(e) => setAutoCenter(e.target.checked)}
               />
-              <span className="toggle-slider"></span>
-              <span className="toggle-label">
+              <span className="toggle-slider-3d"></span>
+              <span className="toggle-label-3d">
                 <i className="fas fa-crosshairs"></i>
                 Auto-centrage
               </span>
             </label>
             
-            <label className="control-toggle">
+            <label className="control-toggle-3d">
               <input
                 type="checkbox"
                 checked={showTracks}
                 onChange={(e) => setShowTracks(e.target.checked)}
               />
-              <span className="toggle-slider"></span>
-              <span className="toggle-label">
+              <span className="toggle-slider-3d"></span>
+              <span className="toggle-label-3d">
                 <i className="fas fa-route"></i>
                 Trajectoires
               </span>
@@ -886,7 +1275,7 @@ const Gps = () => {
             <select 
               value={trackingMode} 
               onChange={(e) => setTrackingMode(e.target.value)}
-              className="tracking-mode-select"
+              className="tracking-mode-select-3d"
             >
               <option value="close">Vue rapprochée</option>
               <option value="normal">Vue normale</option>
@@ -895,26 +1284,28 @@ const Gps = () => {
           </div>
         </div>
 
-        {/* Liste des utilisateurs */}
-        <div className="users-panel-realtime">
-          <div className="panel-header">
+        {/* Liste des utilisateurs avec météo */}
+        <div className="users-panel-realtime-3d">
+          <div className="panel-header-3d">
             <h3>
               <i className="fas fa-satellite-dish"></i>
-              Utilisateurs GPS ({Object.keys(activePositions).length})
+              Utilisateurs GPS 3D ({Object.keys(activePositions).length})
             </h3>
           </div>
           
-          <div className="users-list-realtime">
+          <div className="users-list-realtime-3d">
             {users.map(userData => {
               const position = realTimePositions[userData._id];
               const error = gpsErrors[userData._id];
               const permission = gpsPermissions[userData._id];
               const isCurrentUser = userData._id === user?._id;
+              const cacheKey = position ? `${position.lat.toFixed(4)}_${position.lng.toFixed(4)}` : null;
+              const weather = cacheKey ? weatherData[cacheKey] : null;
               
               return (
                 <div 
                   key={userData._id}
-                  className={`user-item-realtime ${selectedUsers.has(userData._id) ? 'selected' : ''} ${isCurrentUser ? 'current' : ''}`}
+                  className={`user-item-realtime-3d ${selectedUsers.has(userData._id) ? 'selected' : ''} ${isCurrentUser ? 'current' : ''}`}
                   onClick={() => {
                     const newSelected = new Set(selectedUsers);
                     if (selectedUsers.has(userData._id)) {
@@ -925,38 +1316,52 @@ const Gps = () => {
                     setSelectedUsers(newSelected);
                   }}
                 >
-                  <div className="user-avatar-item" style={{ backgroundColor: userColors[userData._id] }}>
-                    {userData.firstName[0]}{userData.lastName[0]}
+                  <div className="user-avatar-item-3d" style={{ backgroundColor: userColors[userData._id] }}>
+                    <span className="user-initials-item">{userData.firstName[0]}{userData.lastName[0]}</span>
                     {position && (
-                      <div className={`activity-indicator ${position.isMoving ? 'moving' : 'stationary'}`}>
-                        <i className={`fas ${position.isMoving ? 'fa-walking' : 'fa-map-pin'}`}></i>
+                      <div className={`activity-indicator-3d ${position.isMoving ? 'moving' : 'stationary'}`}>
+                        <i className={`fas ${position.isMoving ? 'fa-running' : 'fa-map-pin'}`}></i>
+                      </div>
+                    )}
+                    {weather && (
+                      <div className="weather-indicator-mini">
+                        <span>{weather.icon}</span>
                       </div>
                     )}
                   </div>
                   
-                  <div className="user-details-realtime">
-                    <div className="user-name">
+                  <div className="user-details-realtime-3d">
+                    <div className="user-name-3d">
                       {userData.firstName} {userData.lastName}
-                      {isCurrentUser && <span className="you-badge">Vous</span>}
+                      {isCurrentUser && <span className="you-badge-3d">Vous</span>}
                     </div>
-                    <div className="user-role">{userData.role}</div>
+                    <div className="user-role-3d">{userData.role}</div>
                     
                     {position ? (
-                      <div className="position-summary">
-                        <div className="location-text">
+                      <div className="position-summary-3d">
+                        <div className="location-text-3d">
                           <i className="fas fa-map-marker-alt"></i>
                           {position.address.city || 'Localisation...'}
                         </div>
-                        <div className="gps-quality">
+                        <div className="gps-quality-3d">
                           <i className="fas fa-satellite"></i>
                           ±{Math.round(position.accuracy)}m
                         </div>
-                        <div className="last-update">
+                        {weather && (
+                          <div className="weather-mini">
+                            <span>{weather.icon} {weather.temperature}°C</span>
+                          </div>
+                        )}
+                        <div className="distance-traveled">
+                          <i className="fas fa-route"></i>
+                          {((trackDistances[userData._id] || 0) / 1000).toFixed(2)} km
+                        </div>
+                        <div className="last-update-3d">
                           {formatDateTime(position.timestamp)}
                         </div>
                       </div>
                     ) : error ? (
-                      <div className="error-status">
+                      <div className="error-status-3d">
                         <i className="fas fa-exclamation-triangle"></i>
                         {error}
                         <button 
@@ -964,21 +1369,21 @@ const Gps = () => {
                             e.stopPropagation();
                             retryUserGPS(userData);
                           }}
-                          className="retry-btn-small"
+                          className="retry-btn-small-3d"
                         >
                           <i className="fas fa-redo"></i>
                         </button>
                       </div>
                     ) : (
-                      <div className="loading-status">
-                                                <i className="fas fa-spinner fa-spin"></i>
+                      <div className="loading-status-3d">
+                        <i className="fas fa-spinner fa-spin"></i>
                         Recherche GPS...
                       </div>
                     )}
                   </div>
                   
-                  <div className="user-status-indicators">
-                    <div className={`gps-status-icon ${permission || 'unknown'}`}>
+                  <div className="user-status-indicators-3d">
+                    <div className={`gps-status-icon-3d ${permission || 'unknown'}`}>
                       <i className={`fas ${
                         permission === 'granted' ? 'fa-satellite' :
                         permission === 'denied' ? 'fa-times-circle' :
@@ -986,15 +1391,15 @@ const Gps = () => {
                       }`}></i>
                     </div>
                     {position && (
-                      <div className={`signal-strength ${
+                      <div className={`signal-strength-3d ${
                         position.accuracy < 5 ? 'excellent' :
                         position.accuracy < 15 ? 'good' :
                         position.accuracy < 30 ? 'fair' : 'poor'
                       }`}>
-                        <div className="signal-bar bar1"></div>
-                        <div className="signal-bar bar2"></div>
-                        <div className="signal-bar bar3"></div>
-                        <div className="signal-bar bar4"></div>
+                        <div className="signal-bar-3d bar1"></div>
+                        <div className="signal-bar-3d bar2"></div>
+                        <div className="signal-bar-3d bar3"></div>
+                        <div className="signal-bar-3d bar4"></div>
                       </div>
                     )}
                   </div>
@@ -1004,60 +1409,68 @@ const Gps = () => {
           </div>
         </div>
 
-        {/* Légende et aide */}
-        <div className="gps-legend-help">
-          <div className="legend-content">
-            <h4><i className="fas fa-info-circle"></i> Légende</h4>
-            <div className="legend-items">
-              <div className="legend-item">
-                <div className="legend-icon gps-active"></div>
+        {/* Légende et aide améliorées */}
+        <div className="gps-legend-help-3d">
+          <div className="legend-content-3d">
+            <h4><i className="fas fa-info-circle"></i> Légende 3D</h4>
+            <div className="legend-items-3d">
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d gps-active-3d"></div>
                 <span>GPS Actif</span>
               </div>
-              <div className="legend-item">
-                <div className="legend-icon gps-moving"></div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d gps-moving-3d"></div>
                 <span>En mouvement</span>
               </div>
-              <div className="legend-item">
-                <div className="legend-icon gps-stationary"></div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d gps-stationary-3d"></div>
                 <span>Stationnaire</span>
               </div>
-              <div className="legend-item">
-                <div className="legend-icon gps-track"></div>
-                <span>Trajectoire</span>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d gps-track-3d"></div>
+                <span>Trajectoire (jaune)</span>
+              </div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d weather-zone-icon"></div>
+                <span>Zone météo</span>
+              </div>
+              <div className="legend-item-3d">
+                <div className="legend-icon-3d location-3d-icon"></div>
+                <span>Lieu 3D</span>
               </div>
             </div>
           </div>
           
-          <div className="help-content">
+          <div className="help-content-3d">
             <h4><i className="fas fa-keyboard"></i> Raccourcis</h4>
-            <div className="shortcut-item">
+            <div className="shortcut-item-3d">
               <kbd>Espace</kbd> <span>Auto-centrage on/off</span>
             </div>
-            <div className="shortcut-item">
+            <div className="shortcut-item-3d">
               <kbd>Ctrl+T</kbd> <span>Trajectoires on/off</span>
             </div>
-            <div className="shortcut-item">
+            <div className="shortcut-item-3d">
               <kbd>Ctrl+C</kbd> <span>Contrôles on/off</span>
             </div>
-            <div className="shortcut-item">
+            <div className="shortcut-item-3d">
               <kbd>Échap</kbd> <span>Masquer contrôles</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Contrôles de zoom flottants */}
-      <div className="floating-zoom-controls">
+      {/* Contrôles de zoom flottants 3D */}
+      <div className="floating-zoom-controls-3d">
         <button 
           onClick={() => mapInstance?.zoomIn()}
-          className="zoom-btn zoom-in"
+          className="zoom-btn-3d zoom-in-3d"
           title="Zoom avant"
         >
           <i className="fas fa-plus"></i>
         </button>
         <button 
           onClick={() => mapInstance?.zoomOut()}
-          className="zoom-btn zoom-out"
+          className="zoom-btn-3d zoom-out-3d"
           title="Zoom arrière"
         >
           <i className="fas fa-minus"></i>
@@ -1075,7 +1488,7 @@ const Gps = () => {
               mapInstance?.fitBounds(bounds, { padding: [100, 100] });
             }
           }}
-          className="zoom-btn zoom-fit"
+          className="zoom-btn-3d zoom-fit-3d"
           title="Centrer sur tous"
         >
           <i className="fas fa-expand-arrows-alt"></i>
@@ -1084,10 +1497,10 @@ const Gps = () => {
           onClick={() => {
             const currentUserPosition = currentUser ? realTimePositions[currentUser._id] : null;
             if (currentUserPosition && mapInstance) {
-              mapInstance.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
+              mapInstance.setView([currentUserPosition.lat, currentUserPosition.lng], 17);
             }
           }}
-          className="zoom-btn zoom-location"
+          className="zoom-btn-3d zoom-location-3d"
           title="Ma position"
           disabled={!currentUser || !realTimePositions[currentUser?._id]}
         >
@@ -1095,62 +1508,97 @@ const Gps = () => {
         </button>
       </div>
 
-      {/* Notifications temps réel */}
-      <div className="realtime-notifications">
+      {/* Notifications temps réel 3D */}
+      <div className="realtime-notifications-3d">
         {Object.values(activePositions)
-          .filter(position => position.address?.amenity)
+          .filter(position => position.address?.amenity || position.weather)
           .slice(0, 3)
           .map((position, index) => (
             <div 
-              key={`notification-${position.user._id}`}
-              className="notification-realtime"
+              key={`notification-3d-${position.user._id}`}
+              className="notification-realtime-3d"
               style={{ 
                 animationDelay: `${index * 0.3}s`,
                 borderLeftColor: userColors[position.user._id]
               }}
             >
-              <div className="notification-icon">
+              <div className="notification-icon-3d">
                 <i className="fas fa-location-dot"></i>
               </div>
-              <div className="notification-text">
-                <div className="notification-title">
+              <div className="notification-text-3d">
+                <div className="notification-title-3d">
                   {position.user.firstName} {position.user.lastName}
                 </div>
-                <div className="notification-message">
-                  Détecté: {position.address.amenity}
+                <div className="notification-message-3d">
+                  {position.address.amenity ? `Détecté: ${position.address.amenity}` : 
+                   position.weather ? `Météo: ${position.weather.description}` : 
+                   'Position mise à jour'}
                 </div>
-                <div className="notification-time">
+                <div className="notification-time-3d">
                   {formatDateTime(position.timestamp)}
                 </div>
+                {position.weather && (
+                  <div className="notification-weather">
+                    {position.weather.icon} {position.weather.temperature}°C
+                  </div>
+                )}
               </div>
             </div>
           ))}
       </div>
 
-      {/* Indicateur de performance GPS */}
-      <div className="gps-performance-bar">
-        <div className="perf-item">
+      {/* Indicateur de performance GPS 3D */}
+      <div className="gps-performance-bar-3d">
+        <div className="perf-item-3d">
           <i className="fas fa-satellite-dish"></i>
-          <span className={`status ${connectionStatus}`}>
-            {connectionStatus === 'connected' ? 'GPS Connecté' : 'Connexion...'}
+          <span className={`status-3d ${connectionStatus}`}>
+            {connectionStatus === 'connected' ? 'GPS 3D Connecté' : 'Connexion...'}
           </span>
         </div>
-        <div className="perf-item">
+        <div className="perf-item-3d">
           <i className="fas fa-clock"></i>
           <span>MAJ: {new Date().toLocaleTimeString('fr-FR')}</span>
         </div>
         {currentUser && realTimePositions[currentUser._id] && (
-          <div className="perf-item coords">
-            <i className="fas fa-crosshairs"></i>
-            <span>
-              {realTimePositions[currentUser._id].lat.toFixed(4)}, 
-              {realTimePositions[currentUser._id].lng.toFixed(4)}
-            </span>
-          </div>
+          <>
+            <div className="perf-item-3d coords-3d">
+              <i className="fas fa-crosshairs"></i>
+              <span>
+                {realTimePositions[currentUser._id].lat.toFixed(4)}, 
+                {realTimePositions[currentUser._id].lng.toFixed(4)}
+              </span>
+            </div>
+            {realTimePositions[currentUser._id].weather && (
+              <div className="perf-item-3d weather-perf">
+                <span>
+                  {realTimePositions[currentUser._id].weather.icon} 
+                  {realTimePositions[currentUser._id].weather.temperature}°C
+                </span>
+              </div>
+            )}
+          </>
         )}
-        <div className="perf-item">
+        <div className="perf-item-3d">
           <i className="fas fa-users"></i>
           <span>{Object.keys(activePositions).length} actifs</span>
+        </div>
+        <div className="perf-item-3d">
+          <i className="fas fa-route"></i>
+          <span>{(stats.totalDistance / 1000).toFixed(1)} km total</span>
+        </div>
+      </div>
+
+      {/* Panneau météo global */}
+      <div className="global-weather-panel">
+        <h4><i className="fas fa-cloud-sun"></i> Météo Zones</h4>
+        <div className="weather-zones">
+          {Object.values(weatherData).slice(0, 4).map((weather, index) => (
+            <div key={index} className="weather-zone-item">
+              <span className="weather-icon-zone">{weather.icon}</span>
+              <span className="weather-temp-zone">{weather.temperature}°C</span>
+              <span className="weather-desc-zone">{weather.description}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
