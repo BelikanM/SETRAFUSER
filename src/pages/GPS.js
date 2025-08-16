@@ -162,66 +162,65 @@ export default function GPS() {
           {/* 🌍 OpenStreetMap Standard */}
           <BaseLayer checked name="🌍 OpenStreetMap">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           </BaseLayer>
 
-          {/* 🗺️ OSM Humanitarian */}
-          <BaseLayer name="🌐 OSM Humanitarian">
+          {/* 🇫🇷 OpenStreetMap France (plus rapide en EU) */}
+          <BaseLayer name="🇫🇷 OSM France">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> HOT'
+              attribution='&copy; <a href="https://www.openstreetmap.fr/">OSM France</a>'
+              url="https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
+            />
+          </BaseLayer>
+
+          {/* Humanitarian */}
+          <BaseLayer name="🌐 Humanitarian">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> & HOT'
               url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
             />
           </BaseLayer>
 
-          {/* 🛰️ Esri Satellite */}
-          <BaseLayer name="🛰️ Esri Satellite (haute résolution)">
+          {/* Esri High-Res Satellite */}
+          <BaseLayer name="🛰️ Esri Satellite (HD)">
             <TileLayer
-              attribution="Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics"
+              attribution="Tiles © Esri, Maxar, Earthstar Geographics"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
           </BaseLayer>
 
-          {/* 🗺️ OpenTopoMap */}
-          <BaseLayer name="⛰️ OpenTopoMap (relief)">
+          {/* Esri World StreetMap */}
+          <BaseLayer name="🛣️ Esri World StreetMap">
+            <TileLayer
+              attribution="Tiles © Esri"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+            />
+          </BaseLayer>
+
+          {/* Topographique */}
+          <BaseLayer name="⛰️ OpenTopoMap">
             <TileLayer
               attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
             />
           </BaseLayer>
 
-          {/* 🎨 Carto Light */}
-          <BaseLayer name="💡 Carto Light">
+          {/* Carto Voyager */}
+          <BaseLayer name="🧭 Carto Voyager (Light)">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; OSM contributors &copy; CARTO'
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
             />
           </BaseLayer>
 
-          {/* 🌙 Carto Dark */}
-          <BaseLayer name="🌑 Carto Dark">
+          <BaseLayer name="🌑 Carto Voyager (Dark)">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+              attribution='&copy; OSM contributors &copy; CARTO'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
-            />
-          </BaseLayer>
-
-          {/* 🎨 Stamen Toner Lite */}
-          <BaseLayer name="📝 Stamen Toner Lite">
-            <TileLayer
-              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>'
-              url="https://stamen-tiles.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png"
-            />
-          </BaseLayer>
-
-          {/* 🎨 Stamen Watercolor */}
-          <BaseLayer name="🎨 Stamen Watercolor">
-            <TileLayer
-              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>'
-              url="https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg"
             />
           </BaseLayer>
         </LayersControl>
@@ -282,7 +281,7 @@ export default function GPS() {
             </React.Fragment>
           );
         })}
-            </MapContainer>
+      </MapContainer>
     </div>
   );
 }
