@@ -1,4 +1,3 @@
-// src/components/GPS.js
 import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Circle, LayersControl } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +13,129 @@ L.Icon.Default.mergeOptions({
   iconUrl: require("leaflet/dist/images/marker-icon.png"),
   shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
 });
+
+// === NOUVEAU : Utilitaires de traitement d'images côté frontend ===
+class ImageProcessor {
+  static canvas = null;
+  static ctx = null;
+
+  static initCanvas() {
+    if (!this.canvas) {
+      this.canvas = document.createElement('canvas');
+      this.ctx = this.canvas.getContext('2d');
+    }
+  }
+
+  // Conversion d'image en base64 avec filtres
+  static async processImageFromUrl(url, filters) {
+    this.initCanvas();
+    
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        this.canvas.width = img.width;
+        this.canvas.height = img.height;
+        
+        // Appliquer les filtres CSS
+        this.ctx.filter = this.buildFilterString(filters);
+        this.ctx.drawImage(img, 0, 0);
+        
+        resolve(this.canvas.toDataURL());
+      };
+      
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  // Construction de la chaîne de filtres CSS
+  static buildFilterString(filters) {
+    return `
+      contrast(${filters.contrast}%) 
+      brightness(${filters.brightness}%) 
+      saturate(${filters.saturate}%) 
+      blur(${filters.blur}px) 
+      hue-rotate(${filters.hueRotate}deg) 
+      sepia(${filters.sepia}%) 
+      invert(${filters.invert}%) 
+      grayscale(${filters.grayscale}%)
+    `.replace(/\s+/g, ' ').trim();
+  }
+
+  // Redimensionnement d'image
+  static resizeImage(imageData, width, height) {
+    this.initCanvas();
+    
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.ctx.drawImage(img, 0, 0, width, height);
+        resolve(this.canvas.toDataURL());
+      };
+      img.src = imageData;
+    });
+  }
+
+  // Rotation d'image
+  static rotateImage(imageData, degrees) {
+    this.initCanvas();
+    
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const angle = degrees * Math.PI / 180;
+        this.canvas.width = img.width;
+        this.canvas.height = img.height;
+        
+        this.ctx.translate(img.width / 2, img.height / 2);
+        this.ctx.rotate(angle);
+        this.ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        
+        resolve(this.canvas.toDataURL());
+      };
+      img.src = imageData;
+    });
+  }
+
+  // Création de miniatures
+  static createThumbnail(imageData, size = 150) {
+    return this.resizeImage(imageData, size, size);
+  }
+
+  // Ajout de texte sur image
+  static addTextToImage(imageData, text, options = {}) {
+    this.initCanvas();
+    
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        this.canvas.width = img.width;
+        this.canvas.height = img.height;
+        
+        this.ctx.drawImage(img, 0, 0);
+        
+        // Configuration du texte
+        this.ctx.font = options.font || '24px Arial';
+        this.ctx.fillStyle = options.color || '#ffffff';
+        this.ctx.strokeStyle = options.strokeColor || '#000000';
+        this.ctx.lineWidth = options.strokeWidth || 2;
+        
+        const x = options.x || 10;
+        const y = options.y || 30;
+        
+        this.ctx.strokeText(text, x, y);
+        this.ctx.fillText(text, x, y);
+        
+        resolve(this.canvas.toDataURL());
+      };
+      img.src = imageData;
+    });
+  }
+}
 
 // Icônes utilisateurs personnalisées
 const createCustomIcon = (role, isGroup = false, isCurrentUser = false) => {
@@ -175,8 +297,157 @@ export default function GPS() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [satelliteControlsOpen, setSatelliteControlsOpen] = useState(false);
+  
+  // === États pour l'éditeur d'images (version frontend) ===
+  const [editOpen, setEditOpen] = useState(false);
+  const [filters, setFilters] = useState(
+    JSON.parse(localStorage.getItem("tile_filters")) || {
+      contrast: 100,
+      brightness: 100,
+      saturate: 100,
+      blur: 0,
+      hueRotate: 0,
+      sepia: 0,
+      invert: 0,
+      grayscale: 0
+    }
+  );
+  
+  // === NOUVEAU : États pour le traitement d'images ===
+  const [imageProcessing, setImageProcessing] = useState(false);
+  const [processedImages, setProcessedImages] = useState({});
+  const [imageUpload, setImageUpload] = useState(null);
+  const [textOverlay, setTextOverlay] = useState({ text: '', x: 10, y: 30, color: '#ffffff' });
+  
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // === Sauvegarde automatique des filtres dans localStorage ===
+  useEffect(() => {
+    localStorage.setItem("tile_filters", JSON.stringify(filters));
+    localStorage.setItem("processed_images", JSON.stringify(processedImages));
+  }, [filters, processedImages]);
+
+  // === Fonction pour mettre à jour un filtre ===
+  const updateFilter = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: parseInt(value) }));
+  };
+
+  // === Fonction pour réinitialiser les filtres ===
+  const resetFilters = () => {
+    const defaultFilters = {
+      contrast: 100,
+      brightness: 100,
+      saturate: 100,
+      blur: 0,
+      hueRotate: 0,
+      sepia: 0,
+      invert: 0,
+      grayscale: 0
+    };
+    setFilters(defaultFilters);
+    localStorage.setItem("tile_filters", JSON.stringify(defaultFilters));
+  };
+
+  // === NOUVEAU : Fonctions de traitement d'images ===
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImageUpload(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const processUploadedImage = async () => {
+    if (!imageUpload) return;
+    
+    setImageProcessing(true);
+    try {
+      const processedImage = await ImageProcessor.processImageFromUrl(imageUpload, filters);
+      setProcessedImages(prev => ({
+        ...prev,
+        [Date.now()]: processedImage
+      }));
+    } catch (error) {
+      console.error('Erreur traitement image:', error);
+    }
+    setImageProcessing(false);
+  };
+
+  const addTextToImage = async () => {
+    if (!imageUpload || !textOverlay.text) return;
+    
+    setImageProcessing(true);
+    try {
+      const imageWithText = await ImageProcessor.addTextToImage(imageUpload, textOverlay.text, {
+        x: textOverlay.x,
+        y: textOverlay.y,
+        color: textOverlay.color,
+        font: '24px Arial Bold',
+        strokeColor: '#000000',
+        strokeWidth: 2
+      });
+      setProcessedImages(prev => ({
+        ...prev,
+        [`text_${Date.now()}`]: imageWithText
+      }));
+    } catch (error) {
+      console.error('Erreur ajout texte:', error);
+    }
+    setImageProcessing(false);
+  };
+
+  const rotateImage = async (degrees) => {
+    if (!imageUpload) return;
+    
+    setImageProcessing(true);
+    try {
+      const rotatedImage = await ImageProcessor.rotateImage(imageUpload, degrees);
+      setProcessedImages(prev => ({
+        ...prev,
+        [`rotated_${degrees}_${Date.now()}`]: rotatedImage
+      }));
+    } catch (error) {
+      console.error('Erreur rotation image:', error);
+    }
+    setImageProcessing(false);
+  };
+
+  const createThumbnail = async () => {
+    if (!imageUpload) return;
+    
+    setImageProcessing(true);
+    try {
+      const thumbnail = await ImageProcessor.createThumbnail(imageUpload, 150);
+      setProcessedImages(prev => ({
+        ...prev,
+        [`thumb_${Date.now()}`]: thumbnail
+      }));
+    } catch (error) {
+      console.error('Erreur création miniature:', error);
+    }
+    setImageProcessing(false);
+  };
+
+  const downloadProcessedImage = (imageData, filename) => {
+    const link = document.createElement('a');
+    link.download = filename || 'processed_image.png';
+    link.href = imageData;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // === Génération du style CSS pour les filtres ===
+  const getFilterStyle = () => {
+    return {
+      filter: ImageProcessor.buildFilterString(filters)
+    };
+  };
 
   // === API fetch USERS ===
   const fetchUsers = useCallback(async () => {
@@ -251,7 +522,6 @@ export default function GPS() {
     }
     setSidebarOpen(true);
     
-    // Fermer tous les popups
     if (mapRef.current) {
       mapRef.current.closePopup();
     }
@@ -377,7 +647,6 @@ export default function GPS() {
           font-weight: 500;
         }
         
-        /* Bouton Satellite Toggle */
         .satellite-toggle-btn {
           position: absolute;
           top: 80px;
@@ -407,8 +676,57 @@ export default function GPS() {
           box-shadow: 0 6px 20px rgba(0,0,0,0.15);
         }
 
-        .satellite-toggle-btn:active {
-          transform: scale(0.95);
+        .edit-toggle-btn {
+          position: absolute;
+          top: 140px;
+          left: 10px;
+          z-index: 1100;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          font-size: 20px;
+          color: #374151;
+          will-change: transform;
+        }
+
+        .edit-toggle-btn:hover {
+          background: rgba(16, 185, 129, 0.1);
+          transform: scale(1.05);
+          box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .edit-controls {
+          position: absolute;
+          top: 200px;
+          left: 10px;
+          z-index: 1099;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          padding: 20px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+          max-width: 320px;
+          min-width: 280px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          transform: ${editOpen ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)'};
+          opacity: ${editOpen ? '1' : '0'};
+          visibility: ${editOpen ? 'visible' : 'hidden'};
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform, opacity;
+          max-height: 80vh;
+          overflow-y: auto;
         }
         
         .satellite-controls {
@@ -541,6 +859,20 @@ export default function GPS() {
         .intensity-slider:hover {
           transform: scaleY(1.2);
         }
+
+        .filter-slider {
+          width: 100%;
+          margin: 8px 0 16px 0;
+          accent-color: #10b981;
+          height: 6px;
+          border-radius: 3px;
+          background: linear-gradient(to right, #e5e7eb, #10b981);
+          transition: all 0.2s ease;
+        }
+
+        .filter-slider:hover {
+          transform: scaleY(1.15);
+        }
         
         .controls-header {
           margin: 0 0 16px 0;
@@ -557,6 +889,150 @@ export default function GPS() {
           color: #374151;
           margin-bottom: 6px;
           font-weight: 500;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .filter-value {
+          font-weight: 600;
+          color: #10b981;
+          font-size: 12px;
+        }
+
+        .reset-btn, .action-btn {
+          margin: 6px 3px;
+          padding: 10px 14px;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .reset-btn {
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          width: 100%;
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+        }
+
+        .action-btn {
+          background: linear-gradient(135deg, #10b981, #059669);
+          color: white;
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+        }
+
+        .reset-btn:hover {
+          background: linear-gradient(135deg, #dc2626, #b91c1c);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .action-btn:hover {
+          background: linear-gradient(135deg, #059669, #047857);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .upload-section {
+          background: rgba(249, 250, 251, 0.8);
+          border: 2px dashed #d1d5db;
+          border-radius: 12px;
+          padding: 16px;
+          margin: 16px 0;
+          text-align: center;
+          transition: all 0.2s ease;
+        }
+
+        .upload-section:hover {
+          border-color: #10b981;
+          background: rgba(16, 185, 129, 0.05);
+        }
+
+        .upload-section input[type="file"] {
+          display: none;
+        }
+
+        .upload-btn {
+          background: #10b981;
+          color: white;
+          padding: 10px 16px;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .upload-btn:hover {
+          background: #059669;
+          transform: translateY(-1px);
+        }
+
+        .image-preview {
+          max-width: 100%;
+          max-height: 150px;
+          border-radius: 8px;
+          margin: 10px 0;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .processed-images {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin: 16px 0;
+        }
+
+        .processed-image {
+          position: relative;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .processed-image img {
+          width: 100%;
+          height: 80px;
+          object-fit: cover;
+        }
+
+        .download-btn {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          background: rgba(255,255,255,0.9);
+          border: none;
+          border-radius: 4px;
+          padding: 4px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+
+        .text-overlay-section {
+          background: rgba(249, 250, 251, 0.8);
+          border-radius: 12px;
+          padding: 12px;
+          margin: 12px 0;
+        }
+
+        .text-overlay-section input {
+          width: 100%;
+          padding: 8px;
+          margin: 4px 0;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 12px;
+        }
+
+        .satellite-base {
+          ${getFilterStyle().filter ? `filter: ${getFilterStyle().filter} !important;` : ''}
+          transition: filter 0.3s ease;
         }
 
         .leaflet-popup {
@@ -572,10 +1048,25 @@ export default function GPS() {
             font-size: 18px;
           }
 
+          .edit-toggle-btn {
+            top: 130px;
+            left: 5px;
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+          }
+
           .satellite-controls {
             top: 125px;
             right: ${sidebarOpen ? '260px' : '5px'};
             max-width: 200px;
+            padding: 16px;
+          }
+
+          .edit-controls {
+            top: 185px;
+            left: 5px;
+            max-width: 250px;
             padding: 16px;
           }
           
@@ -583,30 +1074,8 @@ export default function GPS() {
             width: 250px;
             right: ${sidebarOpen ? '0' : '-250px'};
           }
-          
-          .overlay-toggle {
-            font-size: 13px;
-            padding: 6px 8px;
-          }
-
-          .controls-header {
-            font-size: 15px;
-          }
         }
 
-        /* Animation d'entrée optimisée */
-        @keyframes slideInFromRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-
-        /* Performance boost */
         * {
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
@@ -616,6 +1085,14 @@ export default function GPS() {
           background: #f8fafc;
         }
       `}</style>
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageUpload}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
 
       <div style={{ position: "absolute", top: "20px", left: "20px", right: sidebarOpen ? "320px" : "20px", zIndex: 999 }}>
         <h2 style={{ margin: "0 0 12px 0", color: "#1f2937", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", fontSize: "24px", fontWeight: "700" }}>
@@ -673,7 +1150,7 @@ export default function GPS() {
             />
           </BaseLayer>
 
-          <BaseLayer name="🇫🇷 OSM France">
+                    <BaseLayer name="🇫🇷 OSM France">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.fr/">OSM France</a>'
               url="https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
@@ -821,6 +1298,265 @@ export default function GPS() {
           );
         })}
       </MapContainer>
+
+      {/* === Bouton Toggle Éditeur === */}
+      <div 
+        className="edit-toggle-btn"
+        onClick={() => setEditOpen(!editOpen)}
+        title={editOpen ? "Fermer l'éditeur d'images" : "Ouvrir l'éditeur d'images"}
+      >
+        {editOpen ? "🎨" : "✏️"}
+      </div>
+
+      {/* === Panneau Éditeur d'Images === */}
+      <div className="edit-controls">
+        <div className="controls-header">
+          <span>🎨</span>
+          <span>Éditeur de Cartes & Images</span>
+        </div>
+        
+        {/* === Section Filtres des Cartes === */}
+        <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "16px" }}>
+          <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
+            🗺️ Filtres des Cartes
+          </h4>
+          
+          <div className="intensity-label">
+            Contraste: <span className="filter-value">{filters.contrast}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="50"
+            max="200"
+            value={filters.contrast}
+            onChange={(e) => updateFilter("contrast", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Luminosité: <span className="filter-value">{filters.brightness}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="50"
+            max="200"
+            value={filters.brightness}
+            onChange={(e) => updateFilter("brightness", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Saturation: <span className="filter-value">{filters.saturate}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="200"
+            value={filters.saturate}
+            onChange={(e) => updateFilter("saturate", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Flou: <span className="filter-value">{filters.blur}px</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="10"
+            value={filters.blur}
+            onChange={(e) => updateFilter("blur", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Teinte: <span className="filter-value">{filters.hueRotate}°</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="360"
+            value={filters.hueRotate}
+            onChange={(e) => updateFilter("hueRotate", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Sépia: <span className="filter-value">{filters.sepia}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="100"
+            value={filters.sepia}
+            onChange={(e) => updateFilter("sepia", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Inversion: <span className="filter-value">{filters.invert}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="100"
+            value={filters.invert}
+            onChange={(e) => updateFilter("invert", e.target.value)}
+          />
+          
+          <div className="intensity-label">
+            Niveaux de gris: <span className="filter-value">{filters.grayscale}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="100"
+            value={filters.grayscale}
+            onChange={(e) => updateFilter("grayscale", e.target.value)}
+          />
+          
+          <button className="reset-btn" onClick={resetFilters}>
+            ♻️ Réinitialiser les filtres
+          </button>
+        </div>
+
+        {/* === Section Upload et Traitement d'Images === */}
+        <div>
+          <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
+            📸 Traitement d'Images
+          </h4>
+          
+          <div className="upload-section">
+            <div style={{ marginBottom: "12px", fontSize: "12px", color: "#6b7280" }}>
+              Uploadez une image pour la traiter
+            </div>
+            <button 
+              className="upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              📁 Choisir une image
+            </button>
+            
+            {imageUpload && (
+              <div style={{ marginTop: "12px" }}>
+                <img 
+                  src={imageUpload} 
+                  alt="Preview" 
+                  className="image-preview"
+                />
+                
+                <div style={{ marginTop: "10px" }}>
+                  <button 
+                    className="action-btn"
+                    onClick={processUploadedImage}
+                    disabled={imageProcessing}
+                  >
+                    {imageProcessing ? "⏳" : "🎨"} Appliquer filtres
+                  </button>
+                  
+                  <button 
+                    className="action-btn"
+                    onClick={() => rotateImage(90)}
+                    disabled={imageProcessing}
+                  >
+                    {imageProcessing ? "⏳" : "🔄"} Rotation 90°
+                  </button>
+                  
+                  <button 
+                    className="action-btn"
+                    onClick={createThumbnail}
+                    disabled={imageProcessing}
+                  >
+                    {imageProcessing ? "⏳" : "🖼️"} Miniature
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* === Section Ajout de Texte === */}
+          {imageUpload && (
+            <div className="text-overlay-section">
+              <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "8px", color: "#374151" }}>
+                ✏️ Ajouter du texte
+              </div>
+              
+              <input
+                type="text"
+                placeholder="Texte à ajouter..."
+                value={textOverlay.text}
+                onChange={(e) => setTextOverlay(prev => ({...prev, text: e.target.value}))}
+              />
+              
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  type="number"
+                  placeholder="X"
+                  value={textOverlay.x}
+                  onChange={(e) => setTextOverlay(prev => ({...prev, x: parseInt(e.target.value) || 10}))}
+                  style={{ width: "60px" }}
+                />
+                <input
+                  type="number"
+                  placeholder="Y"
+                  value={textOverlay.y}
+                  onChange={(e) => setTextOverlay(prev => ({...prev, y: parseInt(e.target.value) || 30}))}
+                  style={{ width: "60px" }}
+                />
+                <input
+                  type="color"
+                  value={textOverlay.color}
+                  onChange={(e) => setTextOverlay(prev => ({...prev, color: e.target.value}))}
+                  style={{ width: "40px", padding: "2px" }}
+                />
+              </div>
+              
+              <button 
+                className="action-btn"
+                onClick={addTextToImage}
+                disabled={imageProcessing || !textOverlay.text}
+                style={{ width: "100%", marginTop: "8px" }}
+              >
+                {imageProcessing ? "⏳ Traitement..." : "✏️ Ajouter texte"}
+              </button>
+            </div>
+          )}
+
+          {/* === Images Traitées === */}
+          {Object.keys(processedImages).length > 0 && (
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: "600", margin: "16px 0 8px 0", color: "#374151" }}>
+                📂 Images traitées ({Object.keys(processedImages).length})
+              </div>
+              
+              <div className="processed-images">
+                {Object.entries(processedImages).map(([key, imageData]) => (
+                  <div key={key} className="processed-image">
+                    <img src={imageData} alt={`Processed ${key}`} />
+                    <button 
+                      className="download-btn"
+                      onClick={() => downloadProcessedImage(imageData, `processed_${key}.png`)}
+                      title="Télécharger"
+                    >
+                      💾
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              <button 
+                className="reset-btn"
+                onClick={() => setProcessedImages({})}
+                style={{ width: "100%", marginTop: "8px" }}
+              >
+                🗑️ Vider les images traitées
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Bouton Toggle Contrôles Satellite */}
       <div 
