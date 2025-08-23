@@ -199,9 +199,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.95}
           className="overlay-labels-premium"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
-          keepBuffer={2}
+          keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     },
@@ -215,9 +218,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.85}
           className="overlay-labels-dark"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
-          keepBuffer={2}
+          keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     },
@@ -230,9 +236,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.25}
           className="overlay-roads-fluid"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
           keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     },
@@ -245,9 +254,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.18}
           className="overlay-districts-soft"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
           keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     },
@@ -260,9 +272,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.22}
           className="overlay-infrastructure-soft"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
           keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     },
@@ -276,9 +291,12 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.15}
           className="overlay-hydro-features"
-          updateWhenIdle={false}
+          updateWhenIdle={true}
           updateWhenZooming={false}
           keepBuffer={1}
+          detectRetina={true}
+          reuseTiles={true}
+          maxZoom={22}
         />
       )
     }
@@ -300,6 +318,7 @@ export default function GPS() {
   
   // === États pour l'éditeur d'images (version frontend) ===
   const [editOpen, setEditOpen] = useState(false);
+  const [hdMode, setHdMode] = useState(false); // Nouveau : Mode HD pour rendu haute résolution
   const [filters, setFilters] = useState(
     JSON.parse(localStorage.getItem("tile_filters")) || {
       contrast: 100,
@@ -309,7 +328,8 @@ export default function GPS() {
       hueRotate: 0,
       sepia: 0,
       invert: 0,
-      grayscale: 0
+      grayscale: 0,
+      sharpness: 0 // Nouveau : Netteté pour simulation de vectorisation
     }
   );
   
@@ -344,7 +364,8 @@ export default function GPS() {
       hueRotate: 0,
       sepia: 0,
       invert: 0,
-      grayscale: 0
+      grayscale: 0,
+      sharpness: 0
     };
     setFilters(defaultFilters);
     localStorage.setItem("tile_filters", JSON.stringify(defaultFilters));
@@ -444,9 +465,21 @@ export default function GPS() {
 
   // === Génération du style CSS pour les filtres ===
   const getFilterStyle = () => {
+    let filterStr = ImageProcessor.buildFilterString(filters);
+    if (filters.sharpness > 0) {
+      filterStr += ' url(#sharpen)';
+    }
     return {
-      filter: ImageProcessor.buildFilterString(filters)
+      filter: filterStr
     };
+  };
+
+  // === Calcul de la matrice de convolution pour la netteté (sharpening) ===
+  const getSharpenMatrix = () => {
+    const amount = filters.sharpness / 100;
+    const center = 1 + amount * 4;
+    const edge = -amount;
+    return `${edge} ${edge} ${edge} ${edge} ${center} ${edge} ${edge} ${edge} ${edge}`;
   };
 
   // === API fetch USERS ===
@@ -574,7 +607,6 @@ export default function GPS() {
           mix-blend-mode: screen;
           filter: contrast(1.4) brightness(1.2) saturate(0.9) blur(0.2px);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           -webkit-font-smoothing: antialiased;
           transition: opacity 0.15s ease-out;
         }
@@ -583,7 +615,6 @@ export default function GPS() {
           mix-blend-mode: multiply;
           filter: contrast(1.6) brightness(0.8) saturate(1.1) blur(0.1px);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           transition: opacity 0.15s ease-out;
         }
         
@@ -591,7 +622,6 @@ export default function GPS() {
           mix-blend-mode: soft-light;
           filter: contrast(0.8) brightness(1.1) saturate(0.6) blur(0.3px) hue-rotate(-10deg);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           transition: opacity 0.15s ease-out;
         }
         
@@ -599,7 +629,6 @@ export default function GPS() {
           mix-blend-mode: overlay;
           filter: contrast(0.7) brightness(1.05) saturate(0.5) blur(0.4px) opacity(0.8);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           transition: opacity 0.15s ease-out;
         }
         
@@ -607,7 +636,6 @@ export default function GPS() {
           mix-blend-mode: color-burn;
           filter: contrast(0.9) brightness(1.15) saturate(0.4) blur(0.3px) sepia(0.1);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           transition: opacity 0.15s ease-out;
         }
         
@@ -615,14 +643,12 @@ export default function GPS() {
           mix-blend-mode: luminosity;
           filter: contrast(0.6) brightness(1.1) saturate(0.3) blur(0.5px) hue-rotate(15deg);
           transform: translate3d(0,0,0);
-          will-change: opacity;
           transition: opacity 0.15s ease-out;
         }
 
         .leaflet-tile-container {
           filter: blur(0.05px);
           transform: translate3d(0,0,0);
-          will-change: transform;
         }
         
         .leaflet-overlay-pane {
@@ -667,7 +693,7 @@ export default function GPS() {
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           font-size: 20px;
           color: #374151;
-          will-change: transform, right;
+          will-change: right;
         }
 
         .satellite-toggle-btn:hover {
@@ -696,7 +722,6 @@ export default function GPS() {
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           font-size: 20px;
           color: #374151;
-          will-change: transform;
         }
 
         .edit-toggle-btn:hover {
@@ -1086,6 +1111,19 @@ export default function GPS() {
         }
       `}</style>
 
+      {/* Définition du filtre SVG pour la netteté (vectorisation HD) */}
+      <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
+        <defs>
+          <filter id="sharpen">
+            <feConvolveMatrix
+              order="3"
+              preserveAlpha="true"
+              kernelMatrix={getSharpenMatrix()}
+            />
+          </filter>
+        </defs>
+      </svg>
+
       <input
         type="file"
         ref={fileInputRef}
@@ -1128,6 +1166,7 @@ export default function GPS() {
         ref={mapRef}
         center={currentLocation ? [currentLocation.lat, currentLocation.lng] : [48.8566, 2.3522]}
         zoom={14}
+        maxZoom={22} // Activation du zoom détaillé jusqu'aux routes/toitures
         style={{ 
           height: "100%", 
           width: "100%"
@@ -1144,19 +1183,25 @@ export default function GPS() {
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
 
-                    <BaseLayer name="🇫🇷 OSM France">
+          <BaseLayer name="🇫🇷 OSM France">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.fr/">OSM France</a>'
               url="https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
 
@@ -1166,9 +1211,15 @@ export default function GPS() {
                 attribution="Tiles © Esri, Maxar, Earthstar Geographics"
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 className="satellite-base"
-                updateWhenIdle={false}
+                updateWhenIdle={true}
                 updateWhenZooming={false}
-                keepBuffer={3}
+                keepBuffer={1}
+                detectRetina={true}
+                reuseTiles={true}
+                maxNativeZoom={18}
+                maxZoom={22}
+                tileSize={hdMode ? 512 : 256}
+                zoomOffset={hdMode ? -1 : 0}
               />
               
               {satelliteOverlays.map((overlay) => 
@@ -1187,9 +1238,12 @@ export default function GPS() {
             <TileLayer
               attribution="Tiles © Esri"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
 
@@ -1197,9 +1251,12 @@ export default function GPS() {
             <TileLayer
               attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
 
@@ -1208,9 +1265,12 @@ export default function GPS() {
               attribution='&copy; OSM contributors &copy; CARTO'
               url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
 
@@ -1219,9 +1279,12 @@ export default function GPS() {
               attribution='&copy; OSM contributors &copy; CARTO'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
-              updateWhenIdle={false}
+              updateWhenIdle={true}
               updateWhenZooming={false}
-              keepBuffer={2}
+              keepBuffer={1}
+              detectRetina={true}
+              reuseTiles={true}
+              maxZoom={22}
             />
           </BaseLayer>
         </LayersControl>
@@ -1320,6 +1383,16 @@ export default function GPS() {
           <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
             🗺️ Filtres des Cartes
           </h4>
+
+          {/* Nouveau : Toggle Mode HD */}
+          <label className="overlay-toggle">
+            <input
+              type="checkbox"
+              checked={hdMode}
+              onChange={(e) => setHdMode(e.target.checked)}
+            />
+            <span>Mode HD (Rendu Haute Résolution)</span>
+          </label>
           
           <div className="intensity-label">
             Contraste: <span className="filter-value">{filters.contrast}%</span>
@@ -1415,6 +1488,19 @@ export default function GPS() {
             max="100"
             value={filters.grayscale}
             onChange={(e) => updateFilter("grayscale", e.target.value)}
+          />
+
+          {/* Nouveau : Slider Netteté pour vectorisation */}
+          <div className="intensity-label">
+            Netteté (Vectorisation): <span className="filter-value">{filters.sharpness}%</span>
+          </div>
+          <input
+            type="range"
+            className="filter-slider"
+            min="0"
+            max="100"
+            value={filters.sharpness}
+            onChange={(e) => updateFilter("sharpness", e.target.value)}
           />
           
           <button className="reset-btn" onClick={resetFilters}>
@@ -1682,7 +1768,7 @@ export default function GPS() {
                       transition: "all 0.2s ease"
                     }}
                     onMouseOver={(e) => e.target.style.background = "#059669"}
-                    onMouseOut={(e) => e.target.style.background = "#10b981"}
+                  onMouseOut={(e) => e.target.style.background = "#10b981"}
                     onClick={() => {
                       if (mapRef.current) {
                         mapRef.current.setView([selectedUser.lat, selectedUser.lng], 16);
@@ -1759,4 +1845,3 @@ export default function GPS() {
     </div>
   );
 }
-
