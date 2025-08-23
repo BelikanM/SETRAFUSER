@@ -199,9 +199,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.95}
           className="overlay-labels-premium"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -218,9 +218,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.85}
           className="overlay-labels-dark"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -236,9 +236,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.25}
           className="overlay-roads-fluid"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -254,9 +254,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.18}
           className="overlay-districts-soft"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -272,9 +272,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.22}
           className="overlay-infrastructure-soft"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -291,9 +291,9 @@ const createAdvancedSatelliteOverlays = () => {
           pane="overlayPane"
           opacity={0.15}
           className="overlay-hydro-features"
-          updateWhenIdle={true}
-          updateWhenZooming={false}
-          keepBuffer={1}
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={5}
           detectRetina={true}
           reuseTiles={true}
           maxZoom={22}
@@ -1175,7 +1175,7 @@ export default function GPS() {
         updateWhenIdle={false}
         updateWhenZooming={false}
         zoomAnimation={true}
-        fadeAnimation={true}
+        fadeAnimation={false}
         markerZoomAnimation={true}
       >
         <LayersControl position="topright">
@@ -1183,9 +1183,9 @@ export default function GPS() {
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1196,9 +1196,9 @@ export default function GPS() {
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.fr/">OSM France</a>'
               url="https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1211,9 +1211,9 @@ export default function GPS() {
                 attribution="Tiles © Esri, Maxar, Earthstar Geographics"
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 className="satellite-base"
-                updateWhenIdle={true}
-                updateWhenZooming={false}
-                keepBuffer={1}
+                updateWhenIdle={false}
+                updateWhenZooming={true}
+                keepBuffer={5}
                 detectRetina={true}
                 reuseTiles={true}
                 maxNativeZoom={18}
@@ -1238,9 +1238,9 @@ export default function GPS() {
             <TileLayer
               attribution="Tiles © Esri"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1251,9 +1251,9 @@ export default function GPS() {
             <TileLayer
               attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1265,9 +1265,9 @@ export default function GPS() {
               attribution='&copy; OSM contributors &copy; CARTO'
               url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1279,9 +1279,9 @@ export default function GPS() {
               attribution='&copy; OSM contributors &copy; CARTO'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               subdomains={["a","b","c","d"]}
-              updateWhenIdle={true}
-              updateWhenZooming={false}
-              keepBuffer={1}
+              updateWhenIdle={false}
+              updateWhenZooming={true}
+              keepBuffer={5}
               detectRetina={true}
               reuseTiles={true}
               maxZoom={22}
@@ -1768,7 +1768,7 @@ export default function GPS() {
                       transition: "all 0.2s ease"
                     }}
                     onMouseOver={(e) => e.target.style.background = "#059669"}
-                  onMouseOut={(e) => e.target.style.background = "#10b981"}
+                    onMouseOut={(e) => e.target.style.background = "#10b981"}
                     onClick={() => {
                       if (mapRef.current) {
                         mapRef.current.setView([selectedUser.lat, selectedUser.lng], 16);
