@@ -5,6 +5,8 @@ import { UserContext } from "../context/UserContext";
 import $ from "jquery";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import proj4 from "proj4";
+import "proj4leaflet";
 
 // Correction bug icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -13,6 +15,28 @@ L.Icon.Default.mergeOptions({
   iconUrl: require("leaflet/dist/images/marker-icon.png"),
   shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
 });
+
+// Définition UTM Zone 32 Sud (EPSG:32732)
+// WGS84 -> UTM Zone 32 Sud
+proj4.defs("EPSG:32732", "+proj=utm +zone=32 +south +datum=WGS84 +units=m +no_defs");
+
+// Crée la projection Leaflet basée dessus
+const crsUTM32S = new L.Proj.CRS("EPSG:32732",
+  "+proj=utm +zone=32 +south +datum=WGS84 +units=m +no_defs",
+  {
+    resolutions: [8192, 4096, 2048, 1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1],
+    origin: [0, 0]
+  }
+);
+
+// Définition UTM 32S
+const utm32s = "+proj=utm +zone=32 +south +datum=WGS84 +units=m +no_defs";
+
+// Exemple : convertir Lat/Lon vers UTM
+function toUTM32S(lat, lng) {
+  return proj4("EPSG:4326", utm32s, [lng, lat]); 
+  // retourne [X, Y] en mètres UTM
+}
 
 // === NOUVEAU : Utilitaires de traitement d'images côté frontend ===
 class ImageProcessor {
@@ -339,6 +363,9 @@ export default function GPS() {
   const [imageUpload, setImageUpload] = useState(null);
   const [textOverlay, setTextOverlay] = useState({ text: '', x: 10, y: 30, color: '#ffffff' });
   
+  // État pour le panneau de coordonnées
+  const [coordsPanelOpen, setCoordsPanelOpen] = useState(false);
+
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -599,6 +626,12 @@ export default function GPS() {
   if (isLoading) return <p>Chargement des utilisateurs...</p>;
   if (error) return <p>Erreur: {error.message}</p>;
 
+  let utmCoords = null;
+  if (currentLocation) {
+    const [x, y] = toUTM32S(currentLocation.lat, currentLocation.lng);
+    utmCoords = { x: x.toFixed(2), y: y.toFixed(2) };
+  }
+
   return (
     <div style={{ position: "relative", height: "100vh", overflow: "hidden" }}>
       <style jsx>{`
@@ -726,6 +759,34 @@ export default function GPS() {
 
         .edit-toggle-btn:hover {
           background: rgba(16, 185, 129, 0.1);
+          transform: scale(1.05);
+          box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .coords-toggle-btn {
+          position: absolute;
+          top: 200px;
+          left: 10px;
+          z-index: 1100;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          font-size: 20px;
+          color: #374151;
+        }
+
+        .coords-toggle-btn:hover {
+          background: rgba(236, 72, 153, 0.1);
           transform: scale(1.05);
           box-shadow: 0 6px 20px rgba(0,0,0,0.15);
         }
@@ -1064,6 +1125,38 @@ export default function GPS() {
           display: none !important;
         }
 
+        .coords-panel {
+          position: absolute;
+          bottom: 60px;
+          left: 20px;
+          z-index: 1200;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 12px;
+          padding: 12px 16px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 13px;
+          color: #1f2937;
+          min-width: 250px;
+          max-width: 300px;
+          word-wrap: break-word;
+          transform: ${coordsPanelOpen ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)'};
+          opacity: ${coordsPanelOpen ? '1' : '0'};
+          visibility: ${coordsPanelOpen ? 'visible' : 'hidden'};
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .coords-panel div {
+          margin-bottom: 4px;
+        }
+
+        .coords-panel strong {
+          font-weight: 600;
+        }
+
         @media (max-width: 768px) {
           .satellite-toggle-btn {
             top: 70px;
@@ -1075,6 +1168,14 @@ export default function GPS() {
 
           .edit-toggle-btn {
             top: 130px;
+            left: 5px;
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+          }
+
+          .coords-toggle-btn {
+            top: 185px;
             left: 5px;
             width: 44px;
             height: 44px;
@@ -1098,6 +1199,15 @@ export default function GPS() {
           .user-sidebar {
             width: 250px;
             right: ${sidebarOpen ? '0' : '-250px'};
+          }
+
+          .coords-panel {
+            bottom: 50px;
+            left: 10px;
+            font-size: 12px;
+            padding: 8px 12px;
+            min-width: 200px;
+            max-width: 220px;
           }
         }
 
@@ -1369,6 +1479,15 @@ export default function GPS() {
         title={editOpen ? "Fermer l'éditeur d'images" : "Ouvrir l'éditeur d'images"}
       >
         {editOpen ? "🎨" : "✏️"}
+      </div>
+
+      {/* === Bouton Toggle Coordonnées === */}
+      <div 
+        className="coords-toggle-btn"
+        onClick={() => setCoordsPanelOpen(!coordsPanelOpen)}
+        title={coordsPanelOpen ? "Fermer le panneau coordonnées" : "Ouvrir le panneau coordonnées"}
+      >
+        {coordsPanelOpen ? "📍" : "🌐"}
       </div>
 
       {/* === Panneau Éditeur d'Images === */}
@@ -1842,6 +1961,21 @@ export default function GPS() {
           )}
         </div>
       </div>
+
+      {/* Panneau Coordonnées */}
+      {currentLocation && (
+        <div className="coords-panel">
+          <div>
+            <strong>WGS84:</strong> Lat {currentLocation.lat.toFixed(6)}, Lng {currentLocation.lng.toFixed(6)}
+          </div>
+          <div>
+            <strong>UTM 32S:</strong> X {utmCoords.x} m, Y {utmCoords.y} m
+          </div>
+          <div>
+            <strong>Précision:</strong> ±{Math.round(currentLocation.acc)} m
+          </div>
+        </div>
+      )}
     </div>
   );
 }
