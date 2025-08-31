@@ -4,10 +4,10 @@ import $ from 'jquery';
 import './Chat.css';
 
 // Cache persistant pour éviter les rechargements
-const ChatCache = {
+let ChatCache = JSON.parse(localStorage.getItem('chatCache')) || {
   messages: [],
   users: [],
-  onlineUsers: new Set(),
+  onlineUsers: [],
   currentUser: null,
   isInitialized: false
 };
@@ -17,7 +17,7 @@ const Chat = () => {
   const [messages, setMessages] = useState(ChatCache.messages);
   const [newMessage, setNewMessage] = useState('');
   const [users, setUsers] = useState(ChatCache.users);
-  const [onlineUsers, setOnlineUsers] = useState(ChatCache.onlineUsers);
+  const [onlineUsers, setOnlineUsers] = useState(new Set(ChatCache.onlineUsers));
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isConnected, setIsConnected] = useState(false);
   const [currentUser, setCurrentUser] = useState(ChatCache.currentUser);
@@ -83,11 +83,15 @@ const Chat = () => {
 
   // Persistance avec jQuery - sauvegarde des données
   const saveToCache = useCallback(() => {
-    ChatCache.messages = messages;
-    ChatCache.users = users;
-    ChatCache.onlineUsers = onlineUsers;
-    ChatCache.currentUser = currentUser;
-    ChatCache.isInitialized = true;
+    const cacheData = {
+      messages,
+      users,
+      onlineUsers: Array.from(onlineUsers),
+      currentUser,
+      isInitialized: true
+    };
+    ChatCache = cacheData;
+    localStorage.setItem('chatCache', JSON.stringify(cacheData));
   }, [messages, users, onlineUsers, currentUser]);
 
   useEffect(() => {
@@ -105,6 +109,11 @@ const Chat = () => {
       });
     }
   }, []);
+
+  // Initialiser messageIdsRef à partir des messages (pour le cache persistant)
+  useEffect(() => {
+    messageIdsRef.current = new Set(messages.map(msg => msg._id));
+  }, [messages]);
 
   // Initialisation avec jQuery persistant
   useEffect(() => {
@@ -1046,4 +1055,3 @@ const Chat = () => {
 };
 
 export default Chat;
-
