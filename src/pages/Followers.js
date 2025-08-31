@@ -1,3 +1,5 @@
+// Chat.js (fichier frontend corrigé)
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import $ from 'jquery';
@@ -21,7 +23,7 @@ const Chat = () => {
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isConnected, setIsConnected] = useState(false);
   const [currentUser, setCurrentUser] = useState(ChatCache.currentUser);
-  const [loading, setLoading] = useState(!ChatCache.isInitialized);
+  const [loading, setLoading] = useState(true);
   const [showMediaUpload, setShowMediaUpload] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -122,16 +124,11 @@ const Chat = () => {
         const token = localStorage.getItem('token');
         if (!token) {
           console.error('Token non trouvé');
+          setLoading(false);
           return;
         }
 
-        // Si déjà initialisé, utiliser le cache
-        if (ChatCache.isInitialized && !loading) {
-          initializeSocket(token);
-          return;
-        }
-
-        // Utiliser jQuery pour les requêtes AJAX
+        // Toujours fetch le profile pour vérifier l'utilisateur actuel
         const profileData = await $.ajax({
           url: 'http://localhost:5000/api/user/profile',
           method: 'GET',
@@ -140,6 +137,19 @@ const Chat = () => {
           }
         });
 
+        // Vérifier si le cache correspond à l'utilisateur actuel
+        if (ChatCache.isInitialized && ChatCache.currentUser?._id === profileData._id) {
+          setCurrentUser(ChatCache.currentUser);
+          setUsers(ChatCache.users);
+          setOnlineUsers(new Set(ChatCache.onlineUsers));
+          setMessages(ChatCache.messages);
+          messageIdsRef.current = new Set(ChatCache.messages.map(msg => msg._id));
+          initializeSocket(token);
+          setLoading(false);
+          return;
+        }
+
+        // Si cache non valide ou différent utilisateur, fetch tout
         setCurrentUser(profileData);
         ChatCache.currentUser = profileData;
 
@@ -156,7 +166,7 @@ const Chat = () => {
 
         const onlineUserIds = new Set(usersData.filter(user => user.isOnline).map(user => user._id));
         setOnlineUsers(onlineUserIds);
-        ChatCache.onlineUsers = onlineUserIds;
+        ChatCache.onlineUsers = Array.from(onlineUserIds);
 
         const messagesData = await $.ajax({
           url: 'http://localhost:5000/api/chat/messages',
@@ -221,7 +231,7 @@ const Chat = () => {
       newSocket.on('user-online', (userData) => {
         setOnlineUsers(prev => {
           const updated = new Set([...prev, userData.userId]);
-          ChatCache.onlineUsers = updated;
+          ChatCache.onlineUsers = Array.from(updated);
           return updated;
         });
       });
@@ -230,7 +240,7 @@ const Chat = () => {
         setOnlineUsers(prev => {
           const newSet = new Set(prev);
           newSet.delete(userData.userId);
-          ChatCache.onlineUsers = newSet;
+          ChatCache.onlineUsers = Array.from(newSet);
           return newSet;
         });
       });
