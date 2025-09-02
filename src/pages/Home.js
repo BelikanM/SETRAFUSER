@@ -218,7 +218,7 @@ const Home = () => {
             <div key={msg._id} style={styles.post}>
               <div style={{
                 ...styles.postContent,
-                aspectRatio: isLandscape ? '16/9' : '9/16'
+                aspectRatio: '9/16'
               }}>
                 {type === 'image' ? (
                   <img 
@@ -227,8 +227,8 @@ const Home = () => {
                     alt="media" 
                     style={{
                       ...styles.media,
-                      objectFit: isLandscape ? 'cover' : 'contain',
-                      backgroundColor: isLandscape ? '#000' : 'transparent'
+                      objectFit: 'contain',
+                      backgroundColor: '#000'
                     }}
                     onLoad={() => handleMediaLoad(index, 'image')}
                   />
@@ -237,8 +237,8 @@ const Home = () => {
                     ref={(el) => (videoRefs.current[index] = el)}
                     style={{
                       ...styles.media,
-                      objectFit: isLandscape ? 'cover' : 'contain',
-                      backgroundColor: isLandscape ? '#000' : 'transparent'
+                      objectFit: 'contain',
+                      backgroundColor: '#000'
                     }}
                     src={`http://localhost:5000${mediaUrl}`}
                     controls
@@ -340,7 +340,6 @@ const styles = {
     minHeight: '100vh',
     padding: '0',
     margin: '0',
-    overflow: 'hidden',
     position: 'relative',
   },
   feed: {
@@ -350,6 +349,7 @@ const styles = {
     width: '100%',
     maxWidth: '500px',
     margin: '0 auto',
+    paddingBottom: '70px',
   },
   post: {
     position: 'relative',
