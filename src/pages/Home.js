@@ -11,9 +11,11 @@ const Home = () => {
   const [socket, setSocket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentVideo, setCurrentVideo] = useState(null);
+  const [mediaDimensions, setMediaDimensions] = useState({});
   const videoRefs = useRef([]);
+  const imageRefs = useRef([]);
 
-  // Charger l’utilisateur et initialiser socket
+  // Charger l'utilisateur et initialiser socket
   useEffect(() => {
     const initialize = async () => {
       const token = localStorage.getItem('token');
@@ -68,6 +70,45 @@ const Home = () => {
     });
   }, [socket]);
 
+  // Détection du format des médias
+  useEffect(() => {
+    const detectMediaDimensions = () => {
+      const newDimensions = {};
+
+      // Détection pour les images
+      imageRefs.current.forEach((img, index) => {
+        if (img && img.naturalWidth) {
+          const isLandscape = img.naturalWidth > img.naturalHeight;
+          newDimensions[index] = {
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            aspectRatio: isLandscape ? '16:9' : '9:16',
+            orientation: isLandscape ? 'landscape' : 'portrait'
+          };
+        }
+      });
+
+      // Détection pour les vidéos
+      videoRefs.current.forEach((video, index) => {
+        if (video && video.videoWidth) {
+          const isLandscape = video.videoWidth > video.videoHeight;
+          newDimensions[index] = {
+            width: video.videoWidth,
+            height: video.videoHeight,
+            aspectRatio: isLandscape ? '16:9' : '9:16',
+            orientation: isLandscape ? 'landscape' : 'portrait'
+          };
+        }
+      });
+
+      setMediaDimensions(newDimensions);
+    };
+
+    // Utiliser un délai pour s'assurer que les médias sont chargés
+    const timer = setTimeout(detectMediaDimensions, 500);
+    return () => clearTimeout(timer);
+  }, [mediaMessages]);
+
   // Like / Dislike
   const handleLike = (id) => socket?.emit('like-message', { messageId: id });
   const handleDislike = (id) => socket?.emit('dislike-message', { messageId: id });
@@ -78,6 +119,25 @@ const Home = () => {
       videoRefs.current[currentVideo].pause();
     }
     setCurrentVideo(index);
+  };
+
+  // Gestion du chargement des médias
+  const handleMediaLoad = (index, type) => {
+    setMediaDimensions(prev => {
+      const element = type === 'image' ? imageRefs.current[index] : videoRefs.current[index];
+      if (!element) return prev;
+      
+      const isLandscape = element.naturalWidth || element.videoWidth > (element.naturalHeight || element.videoHeight);
+      return {
+        ...prev,
+        [index]: {
+          width: element.naturalWidth || element.videoWidth,
+          height: element.naturalHeight || element.videoHeight,
+          aspectRatio: isLandscape ? '16:9' : '9:16',
+          orientation: isLandscape ? 'landscape' : 'portrait'
+        }
+      };
+    });
   };
 
   if (loading) return <div style={styles.loading}>Chargement...</div>;
@@ -91,22 +151,42 @@ const Home = () => {
           const content = msg.content;
           const mediaUrl = content.replace(/^\[IMAGE\]|\[VIDEO\]/, '').split('\n')[0].trim();
           const type = content.startsWith('[IMAGE]') ? 'image' : 'video';
+          const mediaInfo = mediaDimensions[index] || {};
+          const isLandscape = mediaInfo.orientation === 'landscape';
 
           return (
             <div key={msg._id} style={styles.post}>
-              <div style={styles.postContent}>
+              <div style={{
+                ...styles.postContent,
+                aspectRatio: isLandscape ? '16/9' : '9/16'
+              }}>
                 {type === 'image' ? (
-                  <img src={`http://localhost:5000${mediaUrl}`} alt="media" style={styles.media} />
+                  <img 
+                    ref={(el) => (imageRefs.current[index] = el)}
+                    src={`http://localhost:5000${mediaUrl}`} 
+                    alt="media" 
+                    style={{
+                      ...styles.media,
+                      objectFit: isLandscape ? 'cover' : 'contain',
+                      backgroundColor: isLandscape ? '#000' : 'transparent'
+                    }}
+                    onLoad={() => handleMediaLoad(index, 'image')}
+                  />
                 ) : (
                   <video
                     ref={(el) => (videoRefs.current[index] = el)}
-                    style={styles.media}
+                    style={{
+                      ...styles.media,
+                      objectFit: isLandscape ? 'cover' : 'contain',
+                      backgroundColor: isLandscape ? '#000' : 'transparent'
+                    }}
                     src={`http://localhost:5000${mediaUrl}`}
                     controls
                     muted
                     loop
                     playsInline
                     onPlay={() => handleVideoPlay(index)}
+                    onLoadedMetadata={() => handleMediaLoad(index, 'video')}
                   />
                 )}
               </div>
@@ -199,15 +279,15 @@ const styles = {
     overflow: 'hidden',
     backgroundColor: '#121212',
     marginBottom: '15px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   media: {
     width: '100%',
-    height: 'auto',
+    height: '100%',
     maxHeight: '85vh',
-    objectFit: 'cover',
     borderRadius: '10px',
-    backgroundColor: '#000',
-    aspectRatio: '9/16',
   },
   postInfo: {
     display: 'flex',
@@ -285,3 +365,4 @@ const styles = {
 };
 
 export default Home;
+
