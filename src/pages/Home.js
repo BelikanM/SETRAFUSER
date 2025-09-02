@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { FiMessageSquare, FiShare } from 'react-icons/fi';
@@ -6,47 +7,54 @@ import { FaHeart, FaRegHeart, FaMusic } from 'react-icons/fa';
 import { BiDislike } from 'react-icons/bi';
 
 const Home = () => {
-  const [mediaMessages, setMediaMessages] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [currentVideo, setCurrentVideo] = useState(null);
   const [mediaDimensions, setMediaDimensions] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
   const videoRefs = useRef([]);
   const imageRefs = useRef([]);
 
-  // Charger l'utilisateur et initialiser socket
+  const token = localStorage.getItem('token');
+
+  const { data: currentUser, isLoading: userLoading } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token');
+      const profileData = await axios.get('http://localhost:5000/api/user/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return profileData.data;
+    },
+    enabled: !!token,
+    staleTime: Infinity,
+  });
+
+  const { data: mediaMessages = [], isLoading: mediaLoading } = useQuery({
+    queryKey: ['mediaMessages'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token');
+      const response = await axios.get('http://localhost:5000/api/chat/media-messages', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    },
+    enabled: !!currentUser,
+    staleTime: Infinity,
+  });
+
+  // Initialiser socket après chargement de l'utilisateur
   useEffect(() => {
-    const initialize = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const profileData = await axios.get('http://localhost:5000/api/user/profile', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCurrentUser(profileData.data);
+    if (!currentUser) return;
 
-        const response = await axios.get('http://localhost:5000/api/chat/media-messages', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setMediaMessages(response.data);
+    const newSocket = io('http://localhost:5000');
+    newSocket.on('connect', () => newSocket.emit('authenticate', token));
+    setSocket(newSocket);
 
-        const newSocket = io('http://localhost:5000');
-        newSocket.on('connect', () => newSocket.emit('authenticate', token));
-        setSocket(newSocket);
-
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
-        setLoading(false);
-      }
+    return () => {
+      newSocket.disconnect();
     };
-    initialize();
-  }, []);
+  }, [currentUser, token]);
 
   // Gestion socket temps réel
   useEffect(() => {
@@ -54,26 +62,40 @@ const Home = () => {
 
     socket.on('new-group-message', (msg) => {
       if (msg.content.startsWith('[IMAGE]') || msg.content.startsWith('[VIDEO]')) {
-        setMediaMessages((prev) => [msg, ...prev]);
+        queryClient.setQueryData(['mediaMessages'], (old) => [msg, ...old]);
       }
     });
 
     socket.on('message-liked', (updatedMsg) => {
-      setMediaMessages((prev) => prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)));
+      queryClient.setQueryData(['mediaMessages'], (old) =>
+        old.map((m) => (m._id === updatedMsg._id ? updatedMsg : m))
+      );
     });
 
     socket.on('message-disliked', (updatedMsg) => {
-      setMediaMessages((prev) => prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)));
+      queryClient.setQueryData(['mediaMessages'], (old) =>
+        old.map((m) => (m._id === updatedMsg._id ? updatedMsg : m))
+      );
     });
 
     socket.on('message-deleted', (id) => {
-      setMediaMessages((prev) => prev.filter((m) => m._id !== id));
+      queryClient.setQueryData(['mediaMessages'], (old) => old.filter((m) => m._id !== id));
     });
 
     socket.on('new-comment', (updatedMsg) => {
-      setMediaMessages((prev) => prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)));
+      queryClient.setQueryData(['mediaMessages'], (old) =>
+        old.map((m) => (m._id === updatedMsg._id ? updatedMsg : m))
+      );
     });
-  }, [socket]);
+
+    return () => {
+      socket.off('new-group-message');
+      socket.off('message-liked');
+      socket.off('message-disliked');
+      socket.off('message-deleted');
+      socket.off('new-comment');
+    };
+  }, [socket, queryClient]);
 
   // Détection du format des médias
   useEffect(() => {
@@ -144,12 +166,14 @@ const Home = () => {
       const element = type === 'image' ? imageRefs.current[index] : videoRefs.current[index];
       if (!element) return prev;
       
-      const isLandscape = element.naturalWidth || element.videoWidth > (element.naturalHeight || element.videoHeight);
+      const width = element.naturalWidth || element.videoWidth;
+      const height = element.naturalHeight || element.videoHeight;
+      const isLandscape = width > height;
       return {
         ...prev,
         [index]: {
-          width: element.naturalWidth || element.videoWidth,
-          height: element.naturalHeight || element.videoHeight,
+          width,
+          height,
           aspectRatio: isLandscape ? '16:9' : '9:16',
           orientation: isLandscape ? 'landscape' : 'portrait'
         }
@@ -175,6 +199,7 @@ const Home = () => {
     };
   }, []);
 
+  const loading = userLoading || mediaLoading;
   if (loading) return <div style={styles.loading}>Chargement...</div>;
 
   return (
