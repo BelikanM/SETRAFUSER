@@ -12,6 +12,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [currentVideo, setCurrentVideo] = useState(null);
   const [mediaDimensions, setMediaDimensions] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
   const videoRefs = useRef([]);
   const imageRefs = useRef([]);
 
@@ -68,6 +69,10 @@ const Home = () => {
     socket.on('message-deleted', (id) => {
       setMediaMessages((prev) => prev.filter((m) => m._id !== id));
     });
+
+    socket.on('new-comment', (updatedMsg) => {
+      setMediaMessages((prev) => prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)));
+    });
   }, [socket]);
 
   // Détection du format des médias
@@ -113,6 +118,18 @@ const Home = () => {
   const handleLike = (id) => socket?.emit('like-message', { messageId: id });
   const handleDislike = (id) => socket?.emit('dislike-message', { messageId: id });
 
+  // Ajouter commentaire
+  const handleAddComment = (msgId) => {
+    const content = commentInputs[msgId];
+    if (!content || !socket) return;
+    socket.emit('add-comment', { messageId: msgId, content });
+    setCommentInputs((prev) => ({ ...prev, [msgId]: '' }));
+  };
+
+  const handleCommentChange = (msgId, value) => {
+    setCommentInputs((prev) => ({ ...prev, [msgId]: value }));
+  };
+
   // Lecture vidéo auto
   const handleVideoPlay = (index) => {
     if (currentVideo !== null && videoRefs.current[currentVideo]) {
@@ -139,6 +156,24 @@ const Home = () => {
       };
     });
   };
+
+  // Persistance du scroll
+  useEffect(() => {
+    const savedScroll = localStorage.getItem('scrollPosition');
+    if (savedScroll) {
+      window.scrollTo(0, parseInt(savedScroll));
+    }
+
+    const handleScroll = () => {
+      localStorage.setItem('scrollPosition', window.scrollY.toString());
+    };
+
+    window.addEventListener('scroll', handleScroll);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   if (loading) return <div style={styles.loading}>Chargement...</div>;
 
@@ -189,6 +224,32 @@ const Home = () => {
                     onLoadedMetadata={() => handleMediaLoad(index, 'video')}
                   />
                 )}
+              </div>
+
+              <div style={styles.commentsSection}>
+                {msg.comments.map((comment, cIndex) => (
+                  <div key={cIndex} style={styles.comment}>
+                    <img
+                      src={`http://localhost:5000/${comment.sender.profilePhoto}`}
+                      alt={`${comment.sender.firstName} ${comment.sender.lastName}`}
+                      style={styles.commentAvatar}
+                    />
+                    <div style={styles.commentContent}>
+                      <span style={styles.commentAuthor}>{comment.sender.firstName} {comment.sender.lastName}: </span>
+                      <span>{comment.content}</span>
+                    </div>
+                  </div>
+                ))}
+                <div style={styles.commentInput}>
+                  <input
+                    type="text"
+                    value={commentInputs[msg._id] || ''}
+                    onChange={(e) => handleCommentChange(msg._id, e.target.value)}
+                    placeholder="Ajouter un commentaire..."
+                    style={styles.input}
+                  />
+                  <button onClick={() => handleAddComment(msg._id)} style={styles.sendButton}>Envoyer</button>
+                </div>
               </div>
 
               <div style={styles.postInfo}>
@@ -289,6 +350,54 @@ const styles = {
     maxHeight: '85vh',
     borderRadius: '10px',
   },
+  commentsSection: {
+    padding: '10px 15px',
+    backgroundColor: '#121212',
+    borderRadius: '10px',
+    marginBottom: '15px',
+  },
+  comment: {
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '8px',
+    fontSize: '14px',
+  },
+  commentAvatar: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    marginRight: '8px',
+    objectFit: 'cover',
+  },
+  commentContent: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  commentAuthor: {
+    fontWeight: 'bold',
+    marginRight: '5px',
+  },
+  commentInput: {
+    display: 'flex',
+    marginTop: '10px',
+  },
+  input: {
+    flex: 1,
+    padding: '8px',
+    borderRadius: '20px',
+    border: '1px solid #2f2f2f',
+    backgroundColor: '#1f1f1f',
+    color: '#fff',
+  },
+  sendButton: {
+    marginLeft: '10px',
+    padding: '8px 15px',
+    backgroundColor: '#ff0050',
+    border: 'none',
+    borderRadius: '20px',
+    color: '#fff',
+    cursor: 'pointer',
+  },
   postInfo: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -365,4 +474,3 @@ const styles = {
 };
 
 export default Home;
-
