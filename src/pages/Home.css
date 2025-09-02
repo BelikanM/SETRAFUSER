@@ -1,0 +1,153 @@
+/* Conteneur principal */
+.home-container {
+  background-color: #000;
+  color: #fff;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  padding-bottom: 80px; /* espace pour éviter chevauchement footer */
+}
+
+/* Zone du feed */
+.feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* Chaque post */
+.post {
+  position: relative;
+  width: 100%;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #2f2f2f;
+}
+
+/* Contenu média (image ou vidéo) */
+.post-content {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #121212;
+  margin-bottom: 15px;
+}
+
+.post-media {
+  width: 100%;
+  max-height: 85vh;
+  object-fit: cover;
+  border-radius: 10px;
+  background-color: #000;
+  aspect-ratio: 9/16;
+}
+
+/* Contenu texte si pas de média */
+.text-content {
+  padding: 20px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #fff;
+}
+
+/* Infos auteur + actions */
+.post-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 15px;
+}
+
+/* Infos auteur */
+.author-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.author-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+  object-fit: cover;
+  border: 2px solid #ff0050;
+}
+
+.author-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-name {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.song-info {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.song-name {
+  margin-left: 5px;
+}
+
+/* Actions (like, dislike, etc.) */
+.post-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-left: 15px;
+}
+
+.action-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.action-button:hover {
+  transform: scale(1.1);
+}
+
+.action-icon {
+  margin-bottom: 5px;
+  transition: all 0.2s ease;
+}
+
+.liked {
+  color: #ff0050;
+}
+
+.disliked {
+  color: #5c5c5c;
+}
+
+.count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Écran de chargement */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #fff;
+  font-size: 18px;
+  background-color: #000;
+}
