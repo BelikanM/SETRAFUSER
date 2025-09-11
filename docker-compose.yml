@@ -1,0 +1,17 @@
+version: "3.9"  # peut être supprimé si tu veux, obsolète mais pas grave
+
+services:
+  setrafuser-frontend:
+    build: .
+    container_name: setrafuser-frontend
+    restart: always
+    ports:
+      - "3000:80"   # NAS:3000 -> container:80
+    networks:
+      - setraf-net
+    environment:
+      - REACT_APP_API_URL=http://setrafuser-backend:5000/api  # URL interne Docker du backend
+
+networks:
+  setraf-net:
+    external: true  # Utilise le réseau existant défini par le backend
