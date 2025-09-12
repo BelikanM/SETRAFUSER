@@ -67,14 +67,13 @@ const Login = () => {
       localStorage.setItem('token', token); // Stocker le token JWT
       setToken(token); // Mettre à jour le context immédiatement
 
-      // Récupérer les données utilisateur pour pré-charger le contexte et éviter le chargement dans Dashboard
+      // Récupérer les données utilisateur
       const userRes = await axios.get('https://setrafbackend.onrender.com/api/user/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUser(userRes.data, () => {
-        localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
-        navigate('/dashboard'); // Rediriger immédiatement vers le dashboard de manière fluide
-      });
+      setUser(userRes.data); // Mettre à jour le context
+      localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
+      navigate('/dashboard'); // Redirection
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setShowCodeInput(true);
