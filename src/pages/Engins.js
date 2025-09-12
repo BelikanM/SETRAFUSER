@@ -391,7 +391,7 @@ const UserMap = () => {
 
     try {
       const response = await $.ajax({
-        url: 'http://localhost:5000/api/users',
+        url: 'https://setrafbackend.onrender.com/api/users',
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -923,7 +923,7 @@ const UserMap = () => {
                           <div className="user-avatar-small">
                             {userItem.profilePhoto ? (
                               <img 
-                                src={`http://localhost:5000/${userItem.profilePhoto}`} 
+                                src={`https://setrafbackend.onrender.com/${userItem.profilePhoto}`} 
                                 alt={`${userItem.firstName} ${userItem.lastName}`}
                                 onError={(e) => {
                                   e.target.style.display = 'none';
@@ -1006,7 +1006,7 @@ const UserMap = () => {
                   <div className="user-avatar">
                     {userItem.profilePhoto ? (
                       <img 
-                        src={`http://localhost:5000/${userItem.profilePhoto}`} 
+                        src={`https://setrafbackend.onrender.com/${userItem.profilePhoto}`} 
                         alt={`${userItem.firstName} ${userItem.lastName}`}
                         onError={(e) => {
                           e.target.style.display = 'none';
@@ -1192,4 +1192,3 @@ const UserMap = () => {
 };
 
 export default UserMap;
-
