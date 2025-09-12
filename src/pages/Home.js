@@ -14,6 +14,12 @@ const Home = () => {
   const [commentInputs, setCommentInputs] = useState({});
   const videoRefs = useRef([]);
   const imageRefs = useRef([]);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareMediaUrl, setShareMediaUrl] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [filterByType, setFilterByType] = useState('all');
 
   const token = localStorage.getItem('token');
 
@@ -21,7 +27,7 @@ const Home = () => {
     queryKey: ['currentUser'],
     queryFn: async () => {
       if (!token) throw new Error('No token');
-      const profileData = await axios.get('http://localhost:5000/api/user/profile', {
+      const profileData = await axios.get('https://setrafbackend.onrender.com/api/user/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
       return profileData.data;
@@ -34,7 +40,7 @@ const Home = () => {
     queryKey: ['mediaMessages'],
     queryFn: async () => {
       if (!token) throw new Error('No token');
-      const response = await axios.get('http://localhost:5000/api/chat/media-messages', {
+      const response = await axios.get('https://setrafbackend.onrender.com/api/chat/media-messages', {
         headers: { Authorization: `Bearer ${token}` },
       });
       return response.data;
@@ -47,7 +53,7 @@ const Home = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io('https://setrafbackend.onrender.com');
     newSocket.on('connect', () => newSocket.emit('authenticate', token));
     setSocket(newSocket);
 
@@ -136,6 +142,43 @@ const Home = () => {
     return () => clearTimeout(timer);
   }, [mediaMessages]);
 
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Lecture automatique des vidéos avec IntersectionObserver
+  useEffect(() => {
+    const observers = videoRefs.current.map((video, index) => {
+      if (!video) return null;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+              video.play().catch(() => {});
+              handleVideoPlay(index);
+            } else {
+              video.pause();
+            }
+          });
+        },
+        { threshold: 0.5 }
+      );
+
+      observer.observe(video);
+      return observer;
+    });
+
+    return () => {
+      observers.forEach((observer) => observer?.disconnect());
+    };
+  }, [mediaMessages]);
+
   // Like / Dislike
   const handleLike = (id) => socket?.emit('like-message', { messageId: id });
   const handleDislike = (id) => socket?.emit('dislike-message', { messageId: id });
@@ -165,7 +208,7 @@ const Home = () => {
     setMediaDimensions(prev => {
       const element = type === 'image' ? imageRefs.current[index] : videoRefs.current[index];
       if (!element) return prev;
-      
+     
       const width = element.naturalWidth || element.videoWidth;
       const height = element.naturalHeight || element.videoHeight;
       const isLandscape = width > height;
@@ -187,25 +230,76 @@ const Home = () => {
     if (savedScroll) {
       window.scrollTo(0, parseInt(savedScroll));
     }
-
     const handleScroll = () => {
       localStorage.setItem('scrollPosition', window.scrollY.toString());
     };
-
     window.addEventListener('scroll', handleScroll);
-
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
+  const handleShare = (mediaUrl) => {
+    setShareMediaUrl(mediaUrl);
+    setShareModalOpen(true);
+  };
+
+  const copyToClipboard = (url) => {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Lien copié dans le presse-papiers !');
+    });
+  };
+
+  const filteredMessages = mediaMessages
+    .filter((msg) => {
+      if (searchQuery) {
+        const senderName = `${msg.sender.firstName} ${msg.sender.lastName}`.toLowerCase();
+        return senderName.includes(searchQuery.toLowerCase());
+      }
+      return true;
+    })
+    .filter((msg) => {
+      if (filterByType === 'all') return true;
+      const content = msg.content;
+      const type = content.startsWith('[IMAGE]') ? 'image' : 'video';
+      return type === filterByType;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'date') {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      } else if (sortBy === 'likes') {
+        return b.likes.length - a.likes.length;
+      } else if (sortBy === 'comments') {
+        return (b.comments?.length || 0) - (a.comments?.length || 0);
+      }
+      return 0;
+    });
+
   const loading = userLoading || mediaLoading;
   if (loading) return <div style={styles.loading}>Chargement...</div>;
-
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, ...(isDesktop ? styles.desktop : styles.mobile) }}>
+      <div style={styles.searchBarContainer}>
+        <input
+          type="text"
+          placeholder="Rechercher par auteur..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={styles.searchInput}
+        />
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={styles.filterSelect}>
+          <option value="date">Trier par date (récent)</option>
+          <option value="likes">Trier par likes</option>
+          <option value="comments">Trier par commentaires</option>
+        </select>
+        <select value={filterByType} onChange={(e) => setFilterByType(e.target.value)} style={styles.filterSelect}>
+          <option value="all">Tous les types</option>
+          <option value="image">Images</option>
+          <option value="video">Vidéos</option>
+        </select>
+      </div>
       <div style={styles.feed}>
-        {mediaMessages.map((msg, index) => {
+        {filteredMessages.map((msg, index) => {
           const isLiked = msg.likes.includes(currentUser?._id);
           const isDisliked = msg.dislikes.includes(currentUser?._id);
           const content = msg.content;
@@ -213,7 +307,6 @@ const Home = () => {
           const type = content.startsWith('[IMAGE]') ? 'image' : 'video';
           const mediaInfo = mediaDimensions[index] || {};
           const isLandscape = mediaInfo.orientation === 'landscape';
-
           return (
             <div key={msg._id} style={styles.post}>
               <div style={{
@@ -221,10 +314,10 @@ const Home = () => {
                 aspectRatio: '9/16'
               }}>
                 {type === 'image' ? (
-                  <img 
+                  <img
                     ref={(el) => (imageRefs.current[index] = el)}
-                    src={`http://localhost:5000${mediaUrl}`} 
-                    alt="media" 
+                    src={`https://setrafbackend.onrender.com${mediaUrl}`}
+                    alt="media"
                     style={{
                       ...styles.media,
                       objectFit: 'contain',
@@ -240,7 +333,7 @@ const Home = () => {
                       objectFit: 'contain',
                       backgroundColor: '#000'
                     }}
-                    src={`http://localhost:5000${mediaUrl}`}
+                    src={`https://setrafbackend.onrender.com${mediaUrl}`}
                     controls
                     muted
                     loop
@@ -250,12 +343,11 @@ const Home = () => {
                   />
                 )}
               </div>
-
               <div style={styles.commentsSection}>
                 {msg.comments.map((comment, cIndex) => (
                   <div key={cIndex} style={styles.comment}>
                     <img
-                      src={`http://localhost:5000/${comment.sender.profilePhoto}`}
+                      src={`https://setrafbackend.onrender.com/${comment.sender.profilePhoto}`}
                       alt={`${comment.sender.firstName} ${comment.sender.lastName}`}
                       style={styles.commentAvatar}
                     />
@@ -276,11 +368,10 @@ const Home = () => {
                   <button onClick={() => handleAddComment(msg._id)} style={styles.sendButton}>Envoyer</button>
                 </div>
               </div>
-
               <div style={styles.postInfo}>
                 <div style={styles.authorInfo}>
                   <img
-                    src={`http://localhost:5000/${msg.sender.profilePhoto}`}
+                    src={`https://setrafbackend.onrender.com/${msg.sender.profilePhoto}`}
                     alt={msg.sender.firstName}
                     style={styles.authorAvatar}
                   />
@@ -294,7 +385,6 @@ const Home = () => {
                     </div>
                   </div>
                 </div>
-
                 <div style={styles.postActions}>
                   <div style={styles.actionButton} onClick={() => handleLike(msg._id)}>
                     {isLiked ? (
@@ -304,7 +394,6 @@ const Home = () => {
                     )}
                     <span style={styles.count}>{msg.likes.length}</span>
                   </div>
-
                   <div style={styles.actionButton} onClick={() => handleDislike(msg._id)}>
                     <BiDislike
                       size={28}
@@ -312,13 +401,11 @@ const Home = () => {
                     />
                     <span style={styles.count}>{msg.dislikes.length}</span>
                   </div>
-
                   <div style={styles.actionButton}>
                     <FiMessageSquare size={28} style={styles.icon} />
                     <span style={styles.count}>{msg.comments?.length || 0}</span>
                   </div>
-
-                  <div style={styles.actionButton}>
+                  <div style={styles.actionButton} onClick={() => handleShare(mediaUrl)}>
                     <FiShare size={28} style={styles.icon} />
                     <span style={styles.count}>Partager</span>
                   </div>
@@ -328,10 +415,59 @@ const Home = () => {
           );
         })}
       </div>
+      {shareModalOpen && (
+        <div style={styles.shareModalOverlay}>
+          <div style={styles.shareModal}>
+            <h3>Partager sur les réseaux sociaux</h3>
+            <div style={styles.shareLinks}>
+              <a
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://setrafbackend.onrender.com${shareMediaUrl}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.shareButton}
+              >
+                Facebook
+              </a>
+              <a
+                href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`https://setrafbackend.onrender.com${shareMediaUrl}`)}&text=Regardez%20ce%20contenu%20!`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.shareButton}
+              >
+                Twitter (X)
+              </a>
+              <a
+                href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(`https://setrafbackend.onrender.com${shareMediaUrl}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.shareButton}
+              >
+                LinkedIn
+              </a>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Regardez ce contenu : https://setrafbackend.onrender.com${shareMediaUrl}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.shareButton}
+              >
+                WhatsApp
+              </a>
+              <button
+                onClick={() => copyToClipboard(`https://setrafbackend.onrender.com${shareMediaUrl}`)}
+                style={styles.shareButton}
+              >
+                Copier le lien
+              </button>
+            </div>
+            <button onClick={() => setShareModalOpen(false)} style={styles.closeShareButton}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 // Styles modernes type TikTok
 const styles = {
   container: {
@@ -341,6 +477,32 @@ const styles = {
     padding: '0',
     margin: '0',
     position: 'relative',
+  },
+  searchBarContainer: {
+    width: '100%',
+    maxWidth: '500px',
+    padding: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    position: 'sticky',
+    top: 0,
+    backgroundColor: '#000',
+    zIndex: 100,
+  },
+  searchInput: {
+    padding: '10px',
+    borderRadius: '20px',
+    border: '1px solid #2f2f2f',
+    backgroundColor: '#1f1f1f',
+    color: '#fff',
+  },
+  filterSelect: {
+    padding: '10px',
+    borderRadius: '20px',
+    border: '1px solid #2f2f2f',
+    backgroundColor: '#1f1f1f',
+    color: '#fff',
   },
   feed: {
     display: 'flex',
@@ -496,6 +658,47 @@ const styles = {
     fontSize: '18px',
     backgroundColor: '#000',
   },
+  shareModalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  shareModal: {
+    backgroundColor: '#1f1f1f',
+    padding: '20px',
+    borderRadius: '10px',
+    width: '80%',
+    maxWidth: '400px',
+    textAlign: 'center',
+  },
+  shareLinks: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginBottom: '20px',
+  },
+  shareButton: {
+    padding: '10px',
+    backgroundColor: '#ff0050',
+    color: '#fff',
+    borderRadius: '5px',
+    textDecoration: 'none',
+    cursor: 'pointer',
+  },
+  closeShareButton: {
+    padding: '10px',
+    backgroundColor: '#5c5c5c',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+  },
 };
-
 export default Home;

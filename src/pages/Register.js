@@ -21,6 +21,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
   // Charger la photo depuis sessionStorage au montage
   useEffect(() => {
@@ -28,6 +29,15 @@ const Register = () => {
     if (savedPhoto) {
       setProfilePhotoPreview(savedPhoto);
     }
+  }, []);
+
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Gestion des champs du formulaire
@@ -108,7 +118,7 @@ const Register = () => {
     });
 
     try {
-      await axios.post('http://localhost:5000/api/register', form, {
+      await axios.post('https://setrafbackend.onrender.com/api/register', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSuccess('Inscription réussie ! Un lien de vérification a été envoyé à votre email.');
@@ -122,7 +132,7 @@ const Register = () => {
   };
 
   return (
-    <div className="whatsapp-container">
+    <div className={`whatsapp-container ${isDesktop ? 'desktop-version' : 'mobile-version'}`}>
       <div className="form-paper">
         <div className="avatar-container">
           {profilePhotoPreview ? (

@@ -25,7 +25,7 @@ export const UserProvider = ({ children }) => {
 
     try {
       // Fetch user profile
-      const userRes = await axios.get('http://localhost:5000/api/user/profile', {
+      const userRes = await axios.get('https://setrafbackend.onrender.com/api/user/profile', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setUser(userRes.data);
@@ -34,13 +34,13 @@ export const UserProvider = ({ children }) => {
       if (userRes.data.role === 'admin' || userRes.data.role === 'manager') {
         await fetchStats(authToken);
         // Fetch employees
-        const employeesRes = await axios.get('http://localhost:5000/api/employees', {
+        const employeesRes = await axios.get('https://setrafbackend.onrender.com/api/employees', {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         setEmployees(employeesRes.data);
 
         // Fetch forms
-        const formsRes = await axios.get('http://localhost:5000/api/forms', {
+        const formsRes = await axios.get('https://setrafbackend.onrender.com/api/forms', {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         setForms(formsRes.data);
@@ -64,7 +64,7 @@ export const UserProvider = ({ children }) => {
 
   const fetchStats = async (authToken) => {
     try {
-      const statsRes = await axios.get('http://localhost:5000/api/stats', {
+      const statsRes = await axios.get('https://setrafbackend.onrender.com/api/stats', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setStats(statsRes.data);
@@ -75,7 +75,7 @@ export const UserProvider = ({ children }) => {
 
   const fetchUsers = async (authToken) => {
     try {
-      const usersRes = await axios.get('http://localhost:5000/api/users', {
+      const usersRes = await axios.get('https://setrafbackend.onrender.com/api/users', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const fetchedUsers = usersRes.data;

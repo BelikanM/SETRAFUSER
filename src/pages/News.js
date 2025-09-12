@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { UserContext } from '../context/UserContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -10,7 +10,7 @@ const fetchArticles = async () => {
   const token = localStorage.getItem('token');
   if (!token) throw new Error('Token non trouvé. Veuillez vous reconnecter.');
 
-  const res = await axios.get('http://localhost:5000/api/forms', {
+  const res = await axios.get('https://setrafbackend.onrender.com/api/forms', {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -39,6 +39,7 @@ const News = () => {
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState(""); // 🔍 Barre de recherche
   const [viewersModal, setViewersModal] = useState({ show: false, viewers: [] });
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
   const queryClient = useQueryClient();
 
@@ -54,7 +55,7 @@ const News = () => {
   const { mutate: incrementView } = useMutation({
     mutationFn: async (id) => {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/forms/${id}/view`, {}, {
+      await axios.post(`https://setrafbackend.onrender.com/api/forms/${id}/view`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
     },
@@ -62,6 +63,15 @@ const News = () => {
       queryClient.invalidateQueries(['news']);
     },
   });
+
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleExpand = (id) => {
     setExpanded((prev) => {
@@ -76,7 +86,7 @@ const News = () => {
   const handleShowViewers = async (id) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get(`http://localhost:5000/api/forms/${id}/viewers`, {
+      const res = await axios.get(`https://setrafbackend.onrender.com/api/forms/${id}/viewers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setViewersModal({ show: true, viewers: res.data });
@@ -107,7 +117,7 @@ const News = () => {
   });
 
   return (
-    <div className="news-container">
+    <div className={`news-container ${isDesktop ? 'desktop-version' : 'mobile-version'}`}>
       <h1>Flux d'actualités</h1>
       <p>
         Bienvenue, {user.firstName} {user.lastName} ({user.role}).
@@ -174,7 +184,7 @@ const News = () => {
                 {viewer.firstName} {viewer.lastName}
                 {viewer.profilePhoto && (
                   <img
-                    src={`http://localhost:5000/${viewer.profilePhoto}`}
+                    src={`https://setrafbackend.onrender.com/${viewer.profilePhoto}`}
                     alt="Profile"
                     className="small-avatar"
                   />

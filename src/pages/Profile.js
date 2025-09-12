@@ -10,7 +10,7 @@ const ProfileBubble = ({ profilePhoto, email }) => {
     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
       {profilePhoto ? (
         <img
-          src={`http://localhost:5000/${profilePhoto}`}
+          src={`https://setrafbackend.onrender.com/${profilePhoto}`}
           alt="Profile Bubble"
           style={{
             width: '60px',
@@ -52,6 +52,7 @@ const Profile = () => {
   const [editingCertIndex, setEditingCertIndex] = useState(null);
   const [, setTick] = useState(0);
   const queryClient = useQueryClient();
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['userProfile'],
@@ -60,7 +61,7 @@ const Profile = () => {
       if (!token) {
         throw new Error('Aucun token trouvé. Veuillez vous connecter.');
       }
-      const response = await axios.get('http://localhost:5000/api/user/profile', {
+      const response = await axios.get('https://setrafbackend.onrender.com/api/user/profile', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -79,7 +80,7 @@ const Profile = () => {
       if (!token) {
         throw new Error('Aucun token trouvé. Veuillez vous connecter.');
       }
-      const response = await axios.post('http://localhost:5000/api/user/update-profile-photo', formData, {
+      const response = await axios.post('https://setrafbackend.onrender.com/api/user/update-profile-photo', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
@@ -103,7 +104,7 @@ const Profile = () => {
     mutationFn: async ({ formData, isEdit }) => {
       const token = localStorage.getItem('token');
       const endpoint = isEdit ? '/api/user/edit-certificate' : '/api/user/add-certificate';
-      const response = await axios.post(`http://localhost:5000${endpoint}`, formData, {
+      const response = await axios.post(`https://setrafbackend.onrender.com${endpoint}`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
@@ -126,7 +127,7 @@ const Profile = () => {
   const deleteCertificateMutation = useMutation({
     mutationFn: async (index) => {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/user/delete-certificate', { index }, {
+      const response = await axios.post('https://setrafbackend.onrender.com/api/user/delete-certificate', { index }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -148,6 +149,15 @@ const Profile = () => {
       setTick((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handlePhotoChange = (e) => {
@@ -246,7 +256,7 @@ const Profile = () => {
   });
 
   return (
-    <div className="profile-container">
+    <div className={`profile-container ${isDesktop ? 'desktop-version' : 'mobile-version'}`}>
       <h1 className="profile-title">Profil Utilisateur</h1>
 
       <ProfileBubble profilePhoto={user.profilePhoto} email={user.email} />
@@ -296,11 +306,11 @@ const Profile = () => {
               <p className="certificate-date">Début: {new Date(cert.creationDate).toLocaleDateString()}</p>
               <p className="certificate-date">Fin: {new Date(cert.expiryDate).toLocaleDateString()}</p>
               <p className="countdown expired"><FaClock /> {calculateCountdown(cert.expiryDate)}</p>
-              {cert.imagePath && <img src={`http://localhost:5000/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
+              {cert.imagePath && <img src={`https://setrafbackend.onrender.com/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
               {cert.filePath && (
                 <div className="file-actions">
-                  <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
-                  <a href={`http://localhost:5000/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
                 </div>
               )}
               <div className="cert-actions">
@@ -319,11 +329,11 @@ const Profile = () => {
               <p className="certificate-date">Début: {new Date(cert.creationDate).toLocaleDateString()}</p>
               <p className="certificate-date">Fin: {new Date(cert.expiryDate).toLocaleDateString()}</p>
               <p className="countdown expiring-soon"><FaClock /> {calculateCountdown(cert.expiryDate)}</p>
-              {cert.imagePath && <img src={`http://localhost:5000/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
+              {cert.imagePath && <img src={`https://setrafbackend.onrender.com/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
               {cert.filePath && (
                 <div className="file-actions">
-                  <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
-                  <a href={`http://localhost:5000/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
                 </div>
               )}
               <div className="cert-actions">
@@ -342,11 +352,11 @@ const Profile = () => {
               <p className="certificate-date">Début: {new Date(cert.creationDate).toLocaleDateString()}</p>
               <p className="certificate-date">Fin: {new Date(cert.expiryDate).toLocaleDateString()}</p>
               <p className="countdown valid"><FaClock /> {calculateCountdown(cert.expiryDate)}</p>
-              {cert.imagePath && <img src={`http://localhost:5000/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
+              {cert.imagePath && <img src={`https://setrafbackend.onrender.com/${cert.imagePath}`} alt={cert.title} className="cert-image" />}
               {cert.filePath && (
                 <div className="file-actions">
-                  <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
-                  <a href={`http://localhost:5000/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer" className="file-action-link"><FaEye /> Ouvrir</a>
+                  <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download className="file-action-link"><FaDownload /> Télécharger</a>
                 </div>
               )}
               <div className="cert-actions">

@@ -10,7 +10,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaEye, FaDownload, FaFilePdf, FaImage, FaClock, FaHome, FaUser, FaUsers, FaFileAlt, FaCertificate, FaUserCog, FaCheck, FaSignOutAlt, FaEnvelope, FaUserTie, FaCheckCircle, FaFileMedical, FaEdit, FaTrash, FaBuilding, FaBriefcase, FaCalendarAlt, FaSearch } from 'react-icons/fa';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -19,7 +19,7 @@ import './Dashboard.css'; // Fichier CSS dédié pour le dashboard
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
-  const { user, setUser, employees, setEmployees, forms, setForms, users, setUsers, stats, setStats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
+  const { user, setUser, employees, setEmployees, forms, setForms, users, stats, loading, error, setError, handleLogout, fetchStats, fetchUsers } = useContext(UserContext);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentSection, setCurrentSection] = useState('dashboard');
 
@@ -46,10 +46,6 @@ const Dashboard = () => {
   const [expandedForms, setExpandedForms] = useState({});
   const [viewersModal, setViewersModal] = useState({ show: false, viewers: [] });
 
-  // État pour modal PDF
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPdfPath, setSelectedPdfPath] = useState('');
-
   // État pour forcer le re-render en temps réel
   const [, setTick] = useState(0);
 
@@ -68,6 +64,8 @@ const Dashboard = () => {
 
   const formats = ['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'image'];
 
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
+
   useEffect(() => {
     if (quillRef.current) {
       const quill = quillRef.current.getEditor();
@@ -81,6 +79,15 @@ const Dashboard = () => {
       setEditProfile({ firstName: user.firstName, lastName: user.lastName });
     }
   }, [user]);
+
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fonction pour calculer le compte à rebours
   const calculateCountdown = (expiryDate) => {
@@ -117,7 +124,7 @@ const Dashboard = () => {
                 applicationServerKey: urlBase64ToUint8Array('BFXT9xapyauApeUkChO8rMsl3lUA23ndfiYih724AeNoof7NtqO5h1OlpAINwmMcFYAxUKrnCLFMN8VV8Sk3Bgg'), // Clé VAPID publique
               }).then((subscription) => {
                 const token = localStorage.getItem('token');
-                return axios.post('http://localhost:5000/api/subscribe-push', subscription, {
+                return axios.post('https://setrafbackend.onrender.com/api/subscribe-push', subscription, {
                   headers: { Authorization: `Bearer ${token}` },
                 });
               }).catch((err) => console.error('Erreur lors de l\'abonnement push:', err));
@@ -148,7 +155,7 @@ const Dashboard = () => {
       formData.append('profilePhoto', file);
       const token = localStorage.getItem('token');
       try {
-        const res = await axios.post('http://localhost:5000/api/user/update-profile-photo', formData, {
+        const res = await axios.post('https://setrafbackend.onrender.com/api/user/update-profile-photo', formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
         setUser({ ...user, profilePhoto: res.data.profilePhoto });
@@ -168,7 +175,7 @@ const Dashboard = () => {
     e.preventDefault();
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.post('http://localhost:5000/api/user/update-profile', editProfile, {
+      const res = await axios.post('https://setrafbackend.onrender.com/api/user/update-profile', editProfile, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser({ ...user, firstName: res.data.firstName, lastName: res.data.lastName });
@@ -197,11 +204,11 @@ const Dashboard = () => {
       let res;
       if (editingCertIndex !== null) {
         formData.append('index', editingCertIndex);
-        res = await axios.post('http://localhost:5000/api/user/edit-certificate', formData, {
+        res = await axios.post('https://setrafbackend.onrender.com/api/user/edit-certificate', formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
       } else {
-        res = await axios.post('http://localhost:5000/api/user/add-certificate', formData, {
+        res = await axios.post('https://setrafbackend.onrender.com/api/user/add-certificate', formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
       }
@@ -233,7 +240,7 @@ const Dashboard = () => {
   const handleDeleteCertificate = async (index) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.post('http://localhost:5000/api/user/delete-certificate', { index }, {
+      const res = await axios.post('https://setrafbackend.onrender.com/api/user/delete-certificate', { index }, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser({ ...user, certificates: res.data.certificates });
@@ -262,14 +269,14 @@ const Dashboard = () => {
     try {
       let res;
       if (isEditingEmployee) {
-        res = await axios.put(`http://localhost:5000/api/employees/${editingEmployeeId}`, formData, {
+        res = await axios.put(`https://setrafbackend.onrender.com/api/employees/${editingEmployeeId}`, formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
         setEmployees(employees.map(emp => emp._id === editingEmployeeId ? res.data : emp));
         setIsEditingEmployee(false);
         setEditingEmployeeId(null);
       } else {
-        res = await axios.post('http://localhost:5000/api/employees', formData, {
+        res = await axios.post('https://setrafbackend.onrender.com/api/employees', formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
         setEmployees([res.data, ...employees]);
@@ -303,7 +310,7 @@ const Dashboard = () => {
   const handleDeleteEmployee = async (id) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`http://localhost:5000/api/employees/${id}`, {
+      await axios.delete(`https://setrafbackend.onrender.com/api/employees/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setEmployees(employees.filter(emp => emp._id !== id));
@@ -317,7 +324,7 @@ const Dashboard = () => {
   const handleDownloadPdf = async (pdfPath) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await axios.get(`http://localhost:5000/${pdfPath}`, {
+      const response = await axios.get(`https://setrafbackend.onrender.com/${pdfPath}`, {
         responseType: 'blob',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -341,14 +348,14 @@ const Dashboard = () => {
     try {
       let res;
       if (isEditingForm) {
-        res = await axios.put(`http://localhost:5000/api/forms/${editingFormId}`, { name: newFormName, content: formContent }, {
+        res = await axios.put(`https://setrafbackend.onrender.com/api/forms/${editingFormId}`, { name: newFormName, content: formContent }, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setForms(forms.map(f => f._id === editingFormId ? res.data : f));
         setIsEditingForm(false);
         setEditingFormId(null);
       } else {
-        res = await axios.post('http://localhost:5000/api/forms', { name: newFormName, content: formContent }, {
+        res = await axios.post('https://setrafbackend.onrender.com/api/forms', { name: newFormName, content: formContent }, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setForms([res.data, ...forms]);
@@ -375,7 +382,7 @@ const Dashboard = () => {
   const handleDeleteForm = async (id) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`http://localhost:5000/api/forms/${id}`, {
+      await axios.delete(`https://setrafbackend.onrender.com/api/forms/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setForms(forms.filter(f => f._id !== id));
@@ -388,7 +395,7 @@ const Dashboard = () => {
   const handleShowViewers = async (id) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get(`http://localhost:5000/api/forms/${id}/viewers`, {
+      const res = await axios.get(`https://setrafbackend.onrender.com/api/forms/${id}/viewers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setViewersModal({ show: true, viewers: res.data });
@@ -402,7 +409,7 @@ const Dashboard = () => {
     const token = localStorage.getItem('token');
     const newRole = isAdmin ? 'admin' : 'employee';
     try {
-      await axios.post(`http://localhost:5000/api/users/${userId}/update-role`, { role: newRole }, {
+      await axios.post(`https://setrafbackend.onrender.com/api/users/${userId}/update-role`, { role: newRole }, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchUsers(token);
@@ -415,7 +422,7 @@ const Dashboard = () => {
   const handleApproveUser = async (userId) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.post(`http://localhost:5000/api/users/${userId}/approve`, {}, {
+      await axios.post(`https://setrafbackend.onrender.com/api/users/${userId}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchUsers(token);
@@ -428,7 +435,7 @@ const Dashboard = () => {
   const handleRejectUser = async (userId) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.post(`http://localhost:5000/api/users/${userId}/reject`, {}, {
+      await axios.post(`https://setrafbackend.onrender.com/api/users/${userId}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchUsers(token);
@@ -479,7 +486,7 @@ const Dashboard = () => {
         formData.append('image', file);
         const token = localStorage.getItem('token');
         try {
-          const res = await axios.post('http://localhost:5000/api/upload-media', formData, {
+          const res = await axios.post('https://setrafbackend.onrender.com/api/upload-media', formData, {
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
           });
           const range = quillRef.current.getEditor().getSelection();
@@ -510,7 +517,7 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${isDesktop ? 'desktop-version' : 'mobile-version'}`}>
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <ul>
           <li onClick={() => setCurrentSection('dashboard')} title="Dashboard"><FaHome /></li>
@@ -584,7 +591,7 @@ const Dashboard = () => {
                 <div className="employees-grid">
                   {employees.slice(0, 5).map((emp) => (
                     <div key={emp._id} className="employee-card">
-                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Fond" className="employee-card-image" />
+                      <img src={`https://setrafbackend.onrender.com/${emp.profilePhoto}`} alt="Fond" className="employee-card-image" />
                       <div className="employee-card-content">
                         <div className="employee-info">
                           <FaUser />
@@ -601,7 +608,7 @@ const Dashboard = () => {
                       </div>
                       {emp.pdfPath && (
                         <div className="pdf-actions">
-                          <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
+                          <a href={`https://setrafbackend.onrender.com/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
                             <FaEye />
                           </a>
                           <button onClick={() => handleDownloadPdf(emp.pdfPath)} className="download-button">
@@ -627,17 +634,17 @@ const Dashboard = () => {
                       </div>
                       {cert.imagePath && (
                         <img
-                          src={`http://localhost:5000/${cert.imagePath}`}
+                          src={`https://setrafbackend.onrender.com/${cert.imagePath}`}
                           alt={`Certificat ${cert.title}`}
                           className="cert-image"
                         />
                       )}
                       {cert.filePath && (
                         <div className="pdf-actions">
-                          <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                          <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
                             <FaEye /> Ouvrir
                           </a>
-                          <a href={`http://localhost:5000/${cert.filePath}`} download>
+                          <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download>
                             <FaDownload /> Télécharger
                           </a>
                         </div>
@@ -655,7 +662,7 @@ const Dashboard = () => {
             <h2>Profil</h2>
             <div className="avatar-container">
               {user.profilePhoto ? (
-                <img src={`http://localhost:5000/${user.profilePhoto}`} alt="Profile" className="avatar" />
+                <img src={`https://setrafbackend.onrender.com/${user.profilePhoto}`} alt="User avatar" className="avatar" />
               ) : (
                 <div className="avatar-placeholder">📷</div>
               )}
@@ -709,17 +716,17 @@ const Dashboard = () => {
                   </div>
                   {cert.imagePath && (
                     <img
-                      src={`http://localhost:5000/${cert.imagePath}`}
+                      src={`https://setrafbackend.onrender.com/${cert.imagePath}`}
                       alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
@@ -743,17 +750,17 @@ const Dashboard = () => {
                   </div>
                   {cert.imagePath && (
                     <img
-                      src={`http://localhost:5000/${cert.imagePath}`}
+                      src={`https://setrafbackend.onrender.com/${cert.imagePath}`}
                       alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
@@ -777,17 +784,17 @@ const Dashboard = () => {
                   </div>
                   {cert.imagePath && (
                     <img
-                      src={`http://localhost:5000/${cert.imagePath}`}
+                      src={`https://setrafbackend.onrender.com/${cert.imagePath}`}
                       alt={`Certificat ${cert.title}`}
                       className="cert-image"
                     />
                   )}
                   {cert.filePath && (
                     <div className="pdf-actions">
-                      <a href={`http://localhost:5000/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} target="_blank" rel="noopener noreferrer">
                         <FaEye /> Ouvrir
                       </a>
-                      <a href={`http://localhost:5000/${cert.filePath}`} download>
+                      <a href={`https://setrafbackend.onrender.com/${cert.filePath}`} download>
                         <FaDownload /> Télécharger
                       </a>
                     </div>
@@ -804,8 +811,8 @@ const Dashboard = () => {
               {user.profilePhoto && (
                 <div className="profile-circle">
                   <img
-                    src={`http://localhost:5000/${user.profilePhoto}`}
-                    alt="Profile"
+                    src={`https://setrafbackend.onrender.com/${user.profilePhoto}`}
+                    alt="User avatar"
                     className="small-avatar"
                   />
                 </div>
@@ -883,7 +890,7 @@ const Dashboard = () => {
                 <div className="employee-card" key={emp._id}>
                   <div className="employee-card-image-container">
                     {emp.profilePhoto ? (
-                      <img src={`http://localhost:5000/${emp.profilePhoto}`} alt="Photo" className="employee-card-image" />
+                      <img src={`https://setrafbackend.onrender.com/${emp.profilePhoto}`} alt="User avatar" className="employee-card-image" />
                     ) : (
                       <div className="employee-card-placeholder">Pas de photo</div>
                     )}
@@ -911,7 +918,7 @@ const Dashboard = () => {
                     </div>
                     {emp.pdfPath && (
                       <div className="pdf-actions">
-                        <a href={`http://localhost:5000/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
+                        <a href={`https://setrafbackend.onrender.com/${emp.pdfPath}`} target="_blank" rel="noopener noreferrer">
                           <FaEye /> Consulter PDF
                         </a>
                         <button onClick={() => handleDownloadPdf(emp.pdfPath)} className="download-button">
@@ -1050,7 +1057,7 @@ const Dashboard = () => {
                   setExpandedForms(prev => ({ ...prev, [form._id]: newExpanded }));
                   if (newExpanded) {
                     const token = localStorage.getItem('token');
-                    axios.post(`http://localhost:5000/api/forms/${form._id}/view`, {}, {
+                    axios.post(`https://setrafbackend.onrender.com/api/forms/${form._id}/view`, {}, {
                       headers: { Authorization: `Bearer ${token}` }
                     })
                     .then(response => {
@@ -1096,7 +1103,7 @@ const Dashboard = () => {
                   {viewersModal.viewers.map((viewer) => (
                     <li key={viewer._id}>
                       {viewer.firstName} {viewer.lastName}
-                      {viewer.profilePhoto && <img src={`http://localhost:5000/${viewer.profilePhoto}`} alt="Profile" className="small-avatar" />}
+                      {viewer.profilePhoto && <img src={`https://setrafbackend.onrender.com/${viewer.profilePhoto}`} alt="User avatar" className="small-avatar" />}
                     </li>
                   ))}
                 </ul>
@@ -1196,7 +1203,7 @@ const Dashboard = () => {
                   <p>Carte professionnelle :</p>
                   {u.professionalCard && (
                     <img
-                      src={`http://localhost:5000/${u.professionalCard}`}
+                      src={`https://setrafbackend.onrender.com/${u.professionalCard}`}
                       alt="Carte professionnelle"
                       className="professional-card-image"
                     />

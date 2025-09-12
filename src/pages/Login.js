@@ -17,6 +17,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
   // Vérifier le localStorage au montage pour persister l'état d'attente d'approbation
   useEffect(() => {
@@ -25,6 +26,15 @@ const Login = () => {
       setEmail(pendingEmail);
       setShowApprovalMessage(true);
     }
+  }, []);
+
+  // Détection de la taille d'écran pour adaptation desktop/mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleSubmit = async (e) => {
@@ -42,7 +52,7 @@ const Login = () => {
         return;
       }
       try {
-        await axios.post('http://localhost:5000/api/verify-code', { email, code: verificationCode });
+        await axios.post('https://setrafbackend.onrender.com/api/verify-code', { email, code: verificationCode });
       } catch (err) {
         setError(err.response?.data?.message || 'Code de vérification invalide ou expiré.');
         setLoading(false);
@@ -52,19 +62,19 @@ const Login = () => {
 
     // Procéder à la connexion
     try {
-      const res = await axios.post('http://localhost:5000/api/login', { email, password });
+      const res = await axios.post('https://setrafbackend.onrender.com/api/login', { email, password });
       const token = res.data.token;
       localStorage.setItem('token', token); // Stocker le token JWT
       setToken(token); // Mettre à jour le context immédiatement
 
       // Récupérer les données utilisateur pour pré-charger le contexte et éviter le chargement dans Dashboard
-      const userRes = await axios.get('http://localhost:5000/api/user/profile', {
+      const userRes = await axios.get('https://setrafbackend.onrender.com/api/user/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUser(userRes.data); // Mettre à jour l'utilisateur dans le contexte
-
-      localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
-      navigate('/dashboard'); // Rediriger immédiatement vers le dashboard de manière fluide
+      setUser(userRes.data, () => {
+        localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
+        navigate('/dashboard'); // Rediriger immédiatement vers le dashboard de manière fluide
+      });
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setShowCodeInput(true);
@@ -82,7 +92,7 @@ const Login = () => {
   };
 
   return (
-    <div className="whatsapp-container">
+    <div className={`whatsapp-container ${isDesktop ? 'desktop-version' : 'mobile-version'}`}>
       <div className="form-paper">
         <h2>Connexion</h2>
         {error && <p className="error">{error}</p>}

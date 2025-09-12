@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { UserContext } from './UserContext';
 
 // Configuration Socket.io optimisée
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://setrafbackend.onrender.com';
 
 const SOCKET_OPTIONS = {
   transports: ['websocket', 'polling'],
@@ -601,4 +601,3 @@ export const SocketStatusIndicator = ({ style = {} }) => {
 };
 
 export default SocketProvider;
-
