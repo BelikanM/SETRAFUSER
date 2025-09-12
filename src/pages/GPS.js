@@ -510,7 +510,7 @@ export default function GPS() {
   const fetchUsers = useCallback(async () => {
     if (!token) throw new Error("Token manquant");
     const response = await $.ajax({
-      url: "http://localhost:5000/api/users",
+      url: "https://setrafbackend.onrender.com/api/users",
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -533,7 +533,7 @@ export default function GPS() {
     const sendPositionToServer = async (loc) => {
       try {
         await $.ajax({
-          url: "http://localhost:5000/api/users/update-location",
+          url: "https://setrafbackend.onrender.com/api/users/update-location",
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
