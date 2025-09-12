@@ -130,7 +130,7 @@ const Chat = () => {
 
         // Toujours fetch le profile pour vérifier l'utilisateur actuel
         const profileData = await $.ajax({
-          url: 'http://localhost:5000/api/user/profile',
+          url: 'https://setrafbackend.onrender.com/api/user/profile',
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -154,7 +154,7 @@ const Chat = () => {
         ChatCache.currentUser = profileData;
 
         const usersData = await $.ajax({
-          url: 'http://localhost:5000/api/users/chat',
+          url: 'https://setrafbackend.onrender.com/api/users/chat',
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -169,7 +169,7 @@ const Chat = () => {
         ChatCache.onlineUsers = Array.from(onlineUserIds);
 
         const messagesData = await $.ajax({
-          url: 'http://localhost:5000/api/chat/messages',
+          url: 'https://setrafbackend.onrender.com/api/chat/messages',
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -192,7 +192,7 @@ const Chat = () => {
     };
 
     const initializeSocket = (token) => {
-      const newSocket = io('http://localhost:5000');
+      const newSocket = io('https://setrafbackend.onrender.com');
       
       newSocket.on('connect', () => {
         console.log('Connecté au serveur Socket.io');
@@ -320,7 +320,7 @@ const Chat = () => {
 
     try {
       const response = await $.ajax({
-        url: 'http://localhost:5000/api/upload-media',
+        url: 'https://setrafbackend.onrender.com/api/upload-media',
         method: 'POST',
         data: formData,
         processData: false,
@@ -357,7 +357,7 @@ const Chat = () => {
       setDownloadProgress(prev => ({ ...prev, [messageId]: 0 }));
       
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000${mediaUrl}`, {
+      const response = await fetch(`https://setrafbackend.onrender.com${mediaUrl}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -419,7 +419,7 @@ const Chat = () => {
   // Ouvrir le visualiseur de médias
   const openMediaViewer = (mediaUrl, type, message) => {
     setMediaViewer({
-      url: `http://localhost:5000${mediaUrl}`,
+      url: `https://setrafbackend.onrender.com${mediaUrl}`,
       type,
       message,
       originalUrl: mediaUrl
@@ -537,7 +537,7 @@ const Chat = () => {
         <div className="message-media">
           <div className="media-container">
             <img 
-              src={`http://localhost:5000${imageUrl}`} 
+              src={`https://setrafbackend.onrender.com${imageUrl}`} 
               alt="Image partagée"
               className="message-image"
               onClick={() => openMediaViewer(imageUrl, 'image', message)}
@@ -570,7 +570,7 @@ const Chat = () => {
             {isDownloading && (
               <div className="download-progress">
                 <div 
-                  className="download-progress-fill" 
+                  className="progress-fill" 
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -590,7 +590,7 @@ const Chat = () => {
         <div className="message-media">
           <div className="media-container">
             <video 
-              src={`http://localhost:5000${videoUrl}`} 
+              src={`https://setrafbackend.onrender.com${videoUrl}`} 
               className="message-video"
               controls
               preload="metadata"
@@ -625,7 +625,7 @@ const Chat = () => {
             {isDownloading && (
               <div className="download-progress">
                 <div 
-                  className="download-progress-fill" 
+                  className="progress-fill" 
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -645,7 +645,7 @@ const Chat = () => {
         <div className="message-media">
           <div className="media-container audio-container">
             <audio 
-              src={`http://localhost:5000${audioUrl}`} 
+              src={`https://setrafbackend.onrender.com${audioUrl}`} 
               className="message-audio"
               controls
             />
@@ -671,7 +671,7 @@ const Chat = () => {
             {isDownloading && (
               <div className="download-progress">
                 <div 
-                  className="download-progress-fill" 
+                  className="progress-fill" 
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -868,7 +868,7 @@ const Chat = () => {
                 <div className="user-avatar">
                   {user.profilePhoto ? (
                     <img 
-                      src={`http://localhost:5000/${user.profilePhoto}`} 
+                      src={`https://setrafbackend.onrender.com/${user.profilePhoto}`} 
                       alt={`${user.firstName} ${user.lastName}`}
                     />
                   ) : (
@@ -901,7 +901,7 @@ const Chat = () => {
                   <div className="message-avatar">
                     {message.sender.profilePhoto ? (
                       <img 
-                        src={`http://localhost:5000/${message.sender.profilePhoto}`} 
+                        src={`https://setrafbackend.onrender.com/${message.sender.profilePhoto}`} 
                         alt={`${message.sender.firstName} ${message.sender.lastName}`}
                       />
                     ) : (
