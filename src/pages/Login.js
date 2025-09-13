@@ -8,7 +8,7 @@ import './Login.css'; // Assume same as Register CSS
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setToken, setUser } = useContext(UserContext); // Use setToken and setUser from context
+  const { setToken, setUser, setEmployees, setForms, fetchStats, fetchUsers } = useContext(UserContext); // Ajout de setEmployees, setForms, fetchStats, fetchUsers
   const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -72,8 +72,26 @@ const Login = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(userRes.data); // Mettre à jour le context
+
+      // Précharger les autres données avant navigation (fix pour afficher les données sans reload)
+      if (userRes.data.role === 'admin' || userRes.data.role === 'manager') {
+        const empRes = await axios.get('https://setrafbackend.onrender.com/api/employees', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setEmployees(empRes.data);
+
+        const formsRes = await axios.get('https://setrafbackend.onrender.com/api/forms', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setForms(formsRes.data);
+      }
+      await fetchStats(token);
+      if (userRes.data.role === 'admin') {
+        await fetchUsers(token);
+      }
+
       localStorage.removeItem('pendingApprovalEmail'); // Nettoyer si succès
-      navigate('/dashboard'); // Redirection
+      navigate('/dashboard'); // Redirection après chargement des données
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setShowCodeInput(true);
