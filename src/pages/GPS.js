@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Circle, LayersControl, Polyline, Polygon } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle, LayersControl } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
 import { UserContext } from "../context/UserContext";
 import $ from "jquery";
@@ -7,7 +7,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import proj4 from "proj4";
 import "proj4leaflet";
-import html2canvas from 'html2canvas';
 
 // Correction bug icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -570,16 +569,13 @@ export default function GPS() {
   }, [user, token]);
 
   // === Gestion des clics sur les marqueurs ===
-  const handleMarkerClick = async (userData, isGroup = false) => {
+  const handleMarkerClick = (userData, isGroup = false) => {
     if (isGroup) {
       setSelectedGroup(userData);
       setSelectedUser(null);
-      setUserHistory(null);
     } else {
       setSelectedUser(userData);
       setSelectedGroup(null);
-      const history = await fetchUserHistory(userData._id);
-      setUserHistory(history);
     }
     setSidebarOpen(true);
     
@@ -632,107 +628,6 @@ export default function GPS() {
     const [x, y] = toUTM32S(currentLocation.lat, currentLocation.lng);
     utmCoords = { x: x.toFixed(2), y: y.toFixed(2) };
   }
-
-  // === NOUVEAU : États pour les fonctionnalités ajoutées ===
-  const [measureMode, setMeasureMode] = useState(null); // 'distance' ou 'area'
-  const [measurePoints, setMeasurePoints] = useState([]);
-  const [userHistory, setUserHistory] = useState(null);
-  const [addressSearch, setAddressSearch] = useState('');
-  const [annotationMode, setAnnotationMode] = useState(false);
-  const [annotations, setAnnotations] = useState(JSON.parse(localStorage.getItem('annotations')) || []);
-
-  // Sauvegarde des annotations
-  useEffect(() => {
-    localStorage.setItem('annotations', JSON.stringify(annotations));
-  }, [annotations]);
-
-  // Fonction pour exportation de la carte
-  const exportMapAsImage = async () => {
-    if (!mapRef.current) return;
-    
-    setImageProcessing(true);
-    try {
-      const canvas = await html2canvas(mapRef.current.getContainer(), {
-        useCORS: true,
-        scale: hdMode ? 2 : 1, // Utiliser le mode HD si activé
-      });
-      
-      const imageData = canvas.toDataURL('image/png');
-      setProcessedImages(prev => ({
-        ...prev,
-        [`map_export_${Date.now()}`]: imageData
-      }));
-    } catch (error) {
-      console.error('Erreur exportation carte:', error);
-    }
-    setImageProcessing(false);
-  };
-
-  // Gestion des clics pour la mesure
-  const handleMapClick = (e) => {
-    if (annotationMode) {
-      const text = prompt('Entrez le texte de l\'annotation:');
-      if (text) {
-        setAnnotations(prev => [...prev, { lat: e.latlng.lat, lng: e.latlng.lng, text }]);
-      }
-      return;
-    }
-    if (!measureMode) return;
-    setMeasurePoints(prev => [...prev, e.latlng]);
-  };
-
-  // Calcul de distance
-  const calculateDistance = (points) => {
-    let totalDistance = 0;
-    for (let i = 1; i < points.length; i++) {
-      const [x1, y1] = toUTM32S(points[i-1].lat, points[i-1].lng);
-      const [x2, y2] = toUTM32S(points[i].lat, points[i].lng);
-      totalDistance += Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-    }
-    return totalDistance.toFixed(2); // en mètres
-  };
-
-  // Calcul de surface (simplifié)
-  const calculateArea = (points) => {
-    let area = 0;
-    const n = points.length;
-    for (let i = 0; i < n; i++) {
-      const [x1, y1] = toUTM32S(points[i].lat, points[i].lng);
-      const [x2, y2] = toUTM32S(points[(i + 1) % n].lat, points[(i + 1) % n].lng);
-      area += (x1 * y2) - (x2 * y1);
-    }
-    return (Math.abs(area) / 2).toFixed(2); // en m²
-  };
-
-  // Requête API pour l'historique
-  const fetchUserHistory = async (userId) => {
-    try {
-      const response = await $.ajax({
-        url: `https://setrafbackend.onrender.com/api/users/${userId}/location-history`,
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return response; // [{ lat, lng, timestamp }, ...]
-    } catch (error) {
-      console.error('Erreur historique:', error);
-      return [];
-    }
-  };
-
-  // Fonction de géocodage
-  const geocodeAddress = async () => {
-    if (!addressSearch) return;
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressSearch)}`);
-      const data = await response.json();
-      if (data.length > 0) {
-        const { lat, lon } = data[0];
-        mapRef.current.setView([parseFloat(lat), parseFloat(lon)], 16);
-      }
-    } catch (error) {
-      console.error('Erreur géocodage:', error);
-    }
-  };
 
   return (
     <div style={{ position: "relative", height: "100vh", overflow: "hidden" }}>
@@ -1345,7 +1240,6 @@ export default function GPS() {
         zoomAnimation={true}
         fadeAnimation={false}
         markerZoomAnimation={true}
-        onClick={handleMapClick}
       >
         <LayersControl position="topright">
           <BaseLayer name="🌍 OpenStreetMap">
@@ -1529,42 +1423,6 @@ export default function GPS() {
             </React.Fragment>
           );
         })}
-
-        {/* Mesures */}
-        {measureMode === 'distance' && measurePoints.length > 1 && (
-          <Polyline positions={measurePoints} color="#3b82f6" weight={3} />
-        )}
-        {measureMode === 'area' && measurePoints.length > 2 && (
-          <Polygon positions={measurePoints} color="#10b981" fillOpacity={0.2} />
-        )}
-        {measureMode && measurePoints.length > 0 && (
-          <div style={{ position: 'absolute', bottom: '80px', left: '20px', zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '8px', borderRadius: '8px' }}>
-            {measureMode === 'distance' ? `Distance: ${calculateDistance(measurePoints)} m` : `Surface: ${calculateArea(measurePoints)} m²`}
-          </div>
-        )}
-
-        {/* Historique des positions */}
-        {userHistory && userHistory.length > 1 && (
-          <Polyline 
-            positions={userHistory.map(h => [h.lat, h.lng])} 
-            color="#10b981" 
-            weight={3}
-            dashArray="5, 5"
-          />
-        )}
-
-        {/* Annotations */}
-        {annotations.map((anno, index) => (
-          <Marker
-            key={index}
-            position={[anno.lat, anno.lng]}
-            icon={L.divIcon({
-              html: `<div style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${anno.text}</div>`,
-              className: '',
-              iconSize: [0, 0]
-            })}
-          />
-        ))}
       </MapContainer>
 
       {/* === Bouton Toggle Éditeur === */}
@@ -1847,51 +1705,6 @@ export default function GPS() {
             </div>
           )}
         </div>
-
-        {/* Section Export Carte */}
-        <div style={{ marginTop: "12px" }}>
-          <button 
-            className="action-btn"
-            onClick={exportMapAsImage}
-            disabled={imageProcessing}
-          >
-            {imageProcessing ? "⏳" : "🗺️"} Exporter la carte
-          </button>
-        </div>
-
-        {/* Section Mesures */}
-        <div style={{ margin: '16px 0' }}>
-          <button 
-            className="action-btn"
-            onClick={() => { setMeasureMode(measureMode === 'distance' ? null : 'distance'); setMeasurePoints([]); }}
-          >
-            📏 Mesurer Distance
-          </button>
-          <button 
-            className="action-btn"
-            onClick={() => { setMeasureMode(measureMode === 'area' ? null : 'area'); setMeasurePoints([]); }}
-          >
-            📐 Mesurer Surface
-          </button>
-        </div>
-
-        {/* Section Annotations */}
-        <button
-          className="action-btn"
-          onClick={() => setAnnotationMode(!annotationMode)}
-          style={{ background: annotationMode ? '#ef4444' : '#10b981' }}
-        >
-          {annotationMode ? '🛑 Arrêter Annotation' : '📍 Ajouter Annotation'}
-        </button>
-        {annotations.length > 0 && (
-          <button
-            className="reset-btn"
-            onClick={() => setAnnotations([])}
-            style={{ marginTop: '8px' }}
-          >
-            🗑️ Supprimer Annotations
-          </button>
-        )}
       </div>
 
       {/* Bouton Toggle Contrôles Satellite */}
@@ -1980,12 +1793,6 @@ export default function GPS() {
                     Lng: {selectedUser.location.lng.toFixed(6)}<br />
                     Précision: ±{Math.round(selectedUser.location.acc)} m
                   </span>
-                </div>
-              )}
-
-              {userHistory && userHistory.length > 0 && (
-                <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280' }}>
-                  <strong>Historique:</strong> {userHistory.length} positions enregistrées
                 </div>
               )}
 
