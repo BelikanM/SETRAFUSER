@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Circle, LayersControl, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle, LayersControl, Polyline, Polygon } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
 import { UserContext } from "../context/UserContext";
 import $ from "jquery";
@@ -7,6 +7,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import proj4 from "proj4";
 import "proj4leaflet";
+import html2canvas from 'html2canvas';
 
 // Correction bug icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -210,21 +211,6 @@ const createCustomIcon = (role, isGroup = false, isCurrentUser = false) => {
   });
 };
 
-const createPoiIcon = (type) => {
-  let emoji;
-  switch(type) {
-    case 'shop': emoji = '🏪'; break;
-    case 'fuel': emoji = '⛽'; break;
-    case 'hospital': emoji = '🏥'; break;
-  }
-  return L.divIcon({
-    html: `<div style="background: white; border-radius: 50%; padding: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-size: 20px;">${emoji}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
-    popupAnchor: [0, -30]
-  });
-};
-
 // Configuration avancée des couches overlay optimisées
 const createAdvancedSatelliteOverlays = () => {
   return [
@@ -381,18 +367,6 @@ export default function GPS() {
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  const [analysisMode, setAnalysisMode] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [showShops, setShowShops] = useState(false);
-  const [showPetrol, setShowPetrol] = useState(false);
-  const [showHospitals, setShowHospitals] = useState(false);
-  const [shops, setShops] = useState([]);
-  const [petrols, setPetrols] = useState([]);
-  const [hospitals, setHospitals] = useState([]);
-  const [shopCount, setShopCount] = useState(0);
-  const [petrolCount, setPetrolCount] = useState(0);
-  const [hospitalCount, setHospitalCount] = useState(0);
 
   // === Sauvegarde automatique des filtres dans localStorage ===
   useEffect(() => {
@@ -596,13 +570,16 @@ export default function GPS() {
   }, [user, token]);
 
   // === Gestion des clics sur les marqueurs ===
-  const handleMarkerClick = (userData, isGroup = false) => {
+  const handleMarkerClick = async (userData, isGroup = false) => {
     if (isGroup) {
       setSelectedGroup(userData);
       setSelectedUser(null);
+      setUserHistory(null);
     } else {
       setSelectedUser(userData);
       setSelectedGroup(null);
+      const history = await fetchUserHistory(userData._id);
+      setUserHistory(history);
     }
     setSidebarOpen(true);
     
@@ -643,116 +620,6 @@ export default function GPS() {
     groupByPosition[key].push({ ...u, lat, lng });
   });
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (map) {
-      map.on('moveend', handleMoveEnd);
-    }
-    return () => {
-      if (map) map.off('moveend', handleMoveEnd);
-    };
-  }, [showShops, showPetrol, showHospitals, analysisMode]);
-
-  useEffect(() => {
-    if (mapRef.current) handleMoveEnd();
-  }, [showShops, showPetrol, showHospitals, analysisMode]);
-
-  const handleMoveEnd = useCallback(async () => {
-    const map = mapRef.current;
-    if (!map) return;
-    const bounds = map.getBounds();
-    const southWest = bounds.getSouthWest();
-    const northEast = bounds.getNorthEast();
-    const bbox = `${southWest.lat},${southWest.lng},${northEast.lat},${northEast.lng}`;
-    const center = map.getCenter();
-    let needPoi = showShops || showPetrol || showHospitals || analysisMode;
-    let needAnalysis = analysisMode;
-    if (!needPoi && !needAnalysis) return;
-    let poiQuery = '';
-    if (showShops || analysisMode) poiQuery += 'node["shop"](bbox);';
-    if (showPetrol || analysisMode) poiQuery += 'node["amenity"="fuel"](bbox);';
-    if (showHospitals || analysisMode) poiQuery += 'node["amenity"="hospital"](bbox);';
-    let analysisQuery = '';
-    if (analysisMode) {
-      analysisQuery = `
-      way["building"](bbox);
-      way["highway"](bbox);
-      way["natural"="water"](bbox);
-      way["landuse"](bbox);
-      `;
-    }
-    if (!poiQuery && !analysisQuery) return;
-    const query = `[out:json][timeout:25][bbox:${bbox}]; (${poiQuery}${analysisQuery}); out geom;`;
-    try {
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: new URLSearchParams({ data: query })
-      });
-      const data = await response.json();
-      const elements = data.elements;
-      const shopElements = elements.filter(e => e.type === 'node' && e.tags?.shop);
-      setShopCount(shopElements.length);
-      if (showShops) {
-        setShops(shopElements.map(e => ({
-          lat: e.lat,
-          lng: e.lon,
-          name: e.tags.name || 'Boutique',
-          id: e.id
-        })));
-      }
-      const petrolElements = elements.filter(e => e.type === 'node' && e.tags?.amenity === 'fuel');
-      setPetrolCount(petrolElements.length);
-      if (showPetrol) {
-        setPetrols(petrolElements.map(e => ({
-          lat: e.lat,
-          lng: e.lon,
-          name: e.tags.name || 'Station Essence',
-          id: e.id
-        })));
-      }
-      const hospitalElements = elements.filter(e => e.type === 'node' && e.tags?.amenity === 'hospital');
-      setHospitalCount(hospitalElements.length);
-      if (showHospitals) {
-        setHospitals(hospitalElements.map(e => ({
-          lat: e.lat,
-          lng: e.lon,
-          name: e.tags.name || 'Hôpital',
-          id: e.id
-        })));
-      }
-      if (analysisMode) {
-        const buildings = elements.filter(e => e.type === 'way' && e.tags?.building).map(e => ({
-          coords: e.geometry.map(g => [g.lon, g.lat])
-        }));
-        const roads = elements.filter(e => e.type === 'way' && e.tags?.highway).map(e => ({
-          coords: e.geometry.map(g => [g.lon, g.lat])
-        }));
-        const water = elements.filter(e => e.type === 'way' && e.tags?.natural === 'water').map(e => ({
-          coords: e.geometry.map(g => [g.lon, g.lat])
-        }));
-        const landUse = elements.filter(e => e.type === 'way' && e.tags?.landuse).map(e => ({
-          coords: e.geometry.map(g => [g.lon, g.lat])
-        }));
-        const apiData = {
-          location: [center.lat, center.lng],
-          buildings,
-          roads,
-          water,
-          landUse,
-        };
-        const apiResponse = await fetch('https://srv-tddd.onrender.com/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(apiData)
-        });
-        const result = await apiResponse.json();
-        setAnalysisResult(result);
-      }
-    } catch (error) {
-      console.error('Erreur fetch data:', error);
-    }
-  }, [showShops, showPetrol, showHospitals, analysisMode]);
-
   const { BaseLayer } = LayersControl;
   const satelliteOverlays = createAdvancedSatelliteOverlays();
 
@@ -765,6 +632,107 @@ export default function GPS() {
     const [x, y] = toUTM32S(currentLocation.lat, currentLocation.lng);
     utmCoords = { x: x.toFixed(2), y: y.toFixed(2) };
   }
+
+  // === NOUVEAU : États pour les fonctionnalités ajoutées ===
+  const [measureMode, setMeasureMode] = useState(null); // 'distance' ou 'area'
+  const [measurePoints, setMeasurePoints] = useState([]);
+  const [userHistory, setUserHistory] = useState(null);
+  const [addressSearch, setAddressSearch] = useState('');
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [annotations, setAnnotations] = useState(JSON.parse(localStorage.getItem('annotations')) || []);
+
+  // Sauvegarde des annotations
+  useEffect(() => {
+    localStorage.setItem('annotations', JSON.stringify(annotations));
+  }, [annotations]);
+
+  // Fonction pour exportation de la carte
+  const exportMapAsImage = async () => {
+    if (!mapRef.current) return;
+    
+    setImageProcessing(true);
+    try {
+      const canvas = await html2canvas(mapRef.current.getContainer(), {
+        useCORS: true,
+        scale: hdMode ? 2 : 1, // Utiliser le mode HD si activé
+      });
+      
+      const imageData = canvas.toDataURL('image/png');
+      setProcessedImages(prev => ({
+        ...prev,
+        [`map_export_${Date.now()}`]: imageData
+      }));
+    } catch (error) {
+      console.error('Erreur exportation carte:', error);
+    }
+    setImageProcessing(false);
+  };
+
+  // Gestion des clics pour la mesure
+  const handleMapClick = (e) => {
+    if (annotationMode) {
+      const text = prompt('Entrez le texte de l\'annotation:');
+      if (text) {
+        setAnnotations(prev => [...prev, { lat: e.latlng.lat, lng: e.latlng.lng, text }]);
+      }
+      return;
+    }
+    if (!measureMode) return;
+    setMeasurePoints(prev => [...prev, e.latlng]);
+  };
+
+  // Calcul de distance
+  const calculateDistance = (points) => {
+    let totalDistance = 0;
+    for (let i = 1; i < points.length; i++) {
+      const [x1, y1] = toUTM32S(points[i-1].lat, points[i-1].lng);
+      const [x2, y2] = toUTM32S(points[i].lat, points[i].lng);
+      totalDistance += Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+    return totalDistance.toFixed(2); // en mètres
+  };
+
+  // Calcul de surface (simplifié)
+  const calculateArea = (points) => {
+    let area = 0;
+    const n = points.length;
+    for (let i = 0; i < n; i++) {
+      const [x1, y1] = toUTM32S(points[i].lat, points[i].lng);
+      const [x2, y2] = toUTM32S(points[(i + 1) % n].lat, points[(i + 1) % n].lng);
+      area += (x1 * y2) - (x2 * y1);
+    }
+    return (Math.abs(area) / 2).toFixed(2); // en m²
+  };
+
+  // Requête API pour l'historique
+  const fetchUserHistory = async (userId) => {
+    try {
+      const response = await $.ajax({
+        url: `https://setrafbackend.onrender.com/api/users/${userId}/location-history`,
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response; // [{ lat, lng, timestamp }, ...]
+    } catch (error) {
+      console.error('Erreur historique:', error);
+      return [];
+    }
+  };
+
+  // Fonction de géocodage
+  const geocodeAddress = async () => {
+    if (!addressSearch) return;
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressSearch)}`);
+      const data = await response.json();
+      if (data.length > 0) {
+        const { lat, lon } = data[0];
+        mapRef.current.setView([parseFloat(lat), parseFloat(lon)], 16);
+      }
+    } catch (error) {
+      console.error('Erreur géocodage:', error);
+    }
+  };
 
   return (
     <div style={{ position: "relative", height: "100vh", overflow: "hidden" }}>
@@ -1257,27 +1225,6 @@ export default function GPS() {
           font-weight: 600;
         }
 
-        .analysis-panel {
-          position: absolute;
-          bottom: 20px;
-          right: ${sidebarOpen ? '320px' : '10px'};
-          z-index: 1000;
-          background: rgba(255, 255, 255, 0.98);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          padding: 20px;
-          border-radius: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
-          max-width: 300px;
-          min-width: 220px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          will-change: transform, opacity, right;
-          max-height: 60vh;
-          overflow-y: auto;
-        }
-
         @media (max-width: 768px) {
           .satellite-toggle-btn {
             top: 70px;
@@ -1319,10 +1266,6 @@ export default function GPS() {
             bottom: 10px;
             font-size: 12px;
             padding: 8px 12px;
-          }
-
-          .analysis-panel {
-            right: ${sidebarOpen ? '260px' : '5px'};
           }
         }
 
@@ -1402,6 +1345,7 @@ export default function GPS() {
         zoomAnimation={true}
         fadeAnimation={false}
         markerZoomAnimation={true}
+        onClick={handleMapClick}
       >
         <LayersControl position="topright">
           <BaseLayer name="🌍 OpenStreetMap">
@@ -1586,20 +1530,40 @@ export default function GPS() {
           );
         })}
 
-        {showShops && shops.map((s, i) => (
-          <Marker key={s.id} position={[s.lat, s.lng]} icon={createPoiIcon('shop')}>
-            <Popup>No: {i+1} - {s.name}</Popup>
-          </Marker>
-        ))}
-        {showPetrol && petrols.map((p, i) => (
-          <Marker key={p.id} position={[p.lat, p.lng]} icon={createPoiIcon('fuel')}>
-            <Popup>No: {i+1} - {p.name}</Popup>
-          </Marker>
-        ))}
-        {showHospitals && hospitals.map((h, i) => (
-          <Marker key={h.id} position={[h.lat, h.lng]} icon={createPoiIcon('hospital')}>
-            <Popup>No: {i+1} - {h.name}</Popup>
-          </Marker>
+        {/* Mesures */}
+        {measureMode === 'distance' && measurePoints.length > 1 && (
+          <Polyline positions={measurePoints} color="#3b82f6" weight={3} />
+        )}
+        {measureMode === 'area' && measurePoints.length > 2 && (
+          <Polygon positions={measurePoints} color="#10b981" fillOpacity={0.2} />
+        )}
+        {measureMode && measurePoints.length > 0 && (
+          <div style={{ position: 'absolute', bottom: '80px', left: '20px', zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '8px', borderRadius: '8px' }}>
+            {measureMode === 'distance' ? `Distance: ${calculateDistance(measurePoints)} m` : `Surface: ${calculateArea(measurePoints)} m²`}
+          </div>
+        )}
+
+        {/* Historique des positions */}
+        {userHistory && userHistory.length > 1 && (
+          <Polyline 
+            positions={userHistory.map(h => [h.lat, h.lng])} 
+            color="#10b981" 
+            weight={3}
+            dashArray="5, 5"
+          />
+        )}
+
+        {/* Annotations */}
+        {annotations.map((anno, index) => (
+          <Marker
+            key={index}
+            position={[anno.lat, anno.lng]}
+            icon={L.divIcon({
+              html: `<div style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${anno.text}</div>`,
+              className: '',
+              iconSize: [0, 0]
+            })}
+          />
         ))}
       </MapContainer>
 
@@ -1883,6 +1847,51 @@ export default function GPS() {
             </div>
           )}
         </div>
+
+        {/* Section Export Carte */}
+        <div style={{ marginTop: "12px" }}>
+          <button 
+            className="action-btn"
+            onClick={exportMapAsImage}
+            disabled={imageProcessing}
+          >
+            {imageProcessing ? "⏳" : "🗺️"} Exporter la carte
+          </button>
+        </div>
+
+        {/* Section Mesures */}
+        <div style={{ margin: '16px 0' }}>
+          <button 
+            className="action-btn"
+            onClick={() => { setMeasureMode(measureMode === 'distance' ? null : 'distance'); setMeasurePoints([]); }}
+          >
+            📏 Mesurer Distance
+          </button>
+          <button 
+            className="action-btn"
+            onClick={() => { setMeasureMode(measureMode === 'area' ? null : 'area'); setMeasurePoints([]); }}
+          >
+            📐 Mesurer Surface
+          </button>
+        </div>
+
+        {/* Section Annotations */}
+        <button
+          className="action-btn"
+          onClick={() => setAnnotationMode(!annotationMode)}
+          style={{ background: annotationMode ? '#ef4444' : '#10b981' }}
+        >
+          {annotationMode ? '🛑 Arrêter Annotation' : '📍 Ajouter Annotation'}
+        </button>
+        {annotations.length > 0 && (
+          <button
+            className="reset-btn"
+            onClick={() => setAnnotations([])}
+            style={{ marginTop: '8px' }}
+          >
+            🗑️ Supprimer Annotations
+          </button>
+        )}
       </div>
 
       {/* Bouton Toggle Contrôles Satellite */}
@@ -1925,27 +1934,6 @@ export default function GPS() {
               <span>{overlay.name}</span>
             </label>
           ))}
-        </div>
-
-        <div style={{marginTop: "18px"}}>
-          <h4 style={{fontSize: "14px", fontWeight: "600", color: "#374151"}}>📍 Points d'Intérêt</h4>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={showShops} onChange={(e) => setShowShops(e.target.checked)} />
-            <span>Boutiques 🏪</span>
-          </label>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={showPetrol} onChange={(e) => setShowPetrol(e.target.checked)} />
-            <span>Stations essence ⛽</span>
-          </label>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={showHospitals} onChange={(e) => setShowHospitals(e.target.checked)} />
-            <span>Hôpitaux 🏥</span>
-          </label>
-          <hr style={{margin: "12px 0", borderColor: "#e5e7eb"}} />
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={analysisMode} onChange={(e) => setAnalysisMode(e.target.checked)} />
-            <span>Analyse IA Temps Réel 🤖</span>
-          </label>
         </div>
       </div>
 
@@ -1992,6 +1980,12 @@ export default function GPS() {
                     Lng: {selectedUser.location.lng.toFixed(6)}<br />
                     Précision: ±{Math.round(selectedUser.location.acc)} m
                   </span>
+                </div>
+              )}
+
+              {userHistory && userHistory.length > 0 && (
+                <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280' }}>
+                  <strong>Historique:</strong> {userHistory.length} positions enregistrées
                 </div>
               )}
 
@@ -2116,39 +2110,6 @@ export default function GPS() {
           </div>
         </div>
       )}
-
-      {/* Panneau Analyse */}
-      <div className="analysis-panel" style={{display: analysisResult && analysisMode ? 'block' : 'none'}}>
-        <div className="controls-header">🤖 Analyse IA</div>
-        <div>
-          <h5 style={{fontSize: "14px", fontWeight: "600", margin: "0 0 8px 0"}}>Stats</h5>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Bâtiments: {analysisResult?.stats?.building_count}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Routes: {analysisResult?.stats?.road_count}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Eaux: {analysisResult?.stats?.water_count}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Landuse: {analysisResult?.stats?.landuse_count}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Aire bâtiments: {analysisResult?.stats?.total_building_area_m2}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Densité: {analysisResult?.stats?.urban_density_score}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Accessibilité: {analysisResult?.stats?.accessibility_score}</p>
-        </div>
-        <div>
-          <h5 style={{fontSize: "14px", fontWeight: "600", margin: "12px 0 8px 0"}}>Patterns</h5>
-          <ul style={{fontSize: "12px", paddingLeft: "20px", margin: 0}}>
-            {analysisResult?.patterns?.map((p, i) => <li key={i}>{p}</li>)}
-          </ul>
-        </div>
-        <div>
-          <h5 style={{fontSize: "14px", fontWeight: "600", margin: "12px 0 8px 0"}}>Recommandations</h5>
-          <ul style={{fontSize: "12px", paddingLeft: "20px", margin: 0}}>
-            {analysisResult?.recommendations?.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
-        </div>
-        <div>
-          <h5 style={{fontSize: "14px", fontWeight: "600", margin: "12px 0 8px 0"}}>Points d'Intérêt</h5>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Boutiques: {shopCount}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Stations essence: {petrolCount}</p>
-          <p style={{fontSize: "12px", margin: "4px 0"}}>Hôpitaux: {hospitalCount}</p>
-        </div>
-      </div>
     </div>
   );
 }
