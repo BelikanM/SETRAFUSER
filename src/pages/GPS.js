@@ -59,22 +59,22 @@ class ImageProcessor {
   // Conversion d'image en base64 avec filtres
   static async processImageFromUrl(url, filters) {
     this.initCanvas();
-  
+ 
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-    
+   
       img.onload = () => {
         this.canvas.width = img.width;
         this.canvas.height = img.height;
-      
+     
         // Appliquer les filtres CSS
         this.ctx.filter = this.buildFilterString(filters);
         this.ctx.drawImage(img, 0, 0);
-      
+     
         resolve(this.canvas.toDataURL());
       };
-    
+   
       img.onerror = reject;
       img.src = url;
     });
@@ -95,7 +95,7 @@ class ImageProcessor {
   // Redimensionnement d'image
   static resizeImage(imageData, width, height) {
     this.initCanvas();
-  
+ 
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -110,18 +110,18 @@ class ImageProcessor {
   // Rotation d'image
   static rotateImage(imageData, degrees) {
     this.initCanvas();
-  
+ 
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         const angle = degrees * Math.PI / 180;
         this.canvas.width = img.width;
         this.canvas.height = img.height;
-      
+     
         this.ctx.translate(img.width / 2, img.height / 2);
         this.ctx.rotate(angle);
         this.ctx.drawImage(img, -img.width / 2, -img.height / 2);
-      
+     
         resolve(this.canvas.toDataURL());
       };
       img.src = imageData;
@@ -134,27 +134,27 @@ class ImageProcessor {
   // Ajout de texte sur image
   static addTextToImage(imageData, text, options = {}) {
     this.initCanvas();
-  
+ 
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         this.canvas.width = img.width;
         this.canvas.height = img.height;
-      
+     
         this.ctx.drawImage(img, 0, 0);
-      
+     
         // Configuration du texte
         this.ctx.font = options.font || '24px Arial';
         this.ctx.fillStyle = options.color || '#ffffff';
         this.ctx.strokeStyle = options.strokeColor || '#000000';
         this.ctx.lineWidth = options.strokeWidth || 2;
-      
+     
         const x = options.x || 10;
         const y = options.y || 30;
-      
+     
         this.ctx.strokeText(text, x, y);
         this.ctx.fillText(text, x, y);
-      
+     
         resolve(this.canvas.toDataURL());
       };
       img.src = imageData;
@@ -166,7 +166,7 @@ const LocationMarker = ({ currentLocation, setUserInfo, heading, userInfo }) => 
     moveend: async () => {
       const center = map.getCenter();
       const { lat, lng } = center;
-    
+   
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
         const address = response.data.address || {};
@@ -232,7 +232,7 @@ const createCustomIcon = (role, isGroup = false, isCurrentUser = false, heading 
         },
       };
       const r = roles[role] || roles.employee;
-    
+   
       return `
         <div style="
           background: ${isCurrentUser ? "linear-gradient(135deg, #10b981, #059669)" : (markerColor ? markerColor : r.color)};
@@ -461,7 +461,7 @@ export default function GPS() {
   };
   const processUploadedImage = async () => {
     if (!imageUpload) return;
-  
+ 
     setImageProcessing(true);
     try {
       const processedImage = await ImageProcessor.processImageFromUrl(imageUpload, filters);
@@ -476,7 +476,7 @@ export default function GPS() {
   };
   const addTextToImage = async () => {
     if (!imageUpload || !textOverlay.text) return;
-  
+ 
     setImageProcessing(true);
     try {
       const imageWithText = await ImageProcessor.addTextToImage(imageUpload, textOverlay.text, {
@@ -498,7 +498,7 @@ export default function GPS() {
   };
   const rotateImage = async (degrees) => {
     if (!imageUpload) return;
-  
+ 
     setImageProcessing(true);
     try {
       const rotatedImage = await ImageProcessor.rotateImage(imageUpload, degrees);
@@ -513,7 +513,7 @@ export default function GPS() {
   };
   const createThumbnail = async () => {
     if (!imageUpload) return;
-  
+ 
     setImageProcessing(true);
     try {
       const thumbnail = await ImageProcessor.createThumbnail(imageUpload, 150);
@@ -570,7 +570,6 @@ export default function GPS() {
   // === GPS LIVE utilisateur ===
   useEffect(() => {
     if (!user || !token) return;
-
     const updatePosition = async (pos) => {
       const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
       setCurrentLocation(loc);
@@ -603,7 +602,6 @@ export default function GPS() {
         console.error("Erreur:", e);
       }
     };
-
     const fetchIPLocation = async () => {
       try {
         const ipResponse = await axios.get('https://ipapi.co/json/');
@@ -640,19 +638,16 @@ export default function GPS() {
         console.error("Erreur IP location:", e);
       }
     };
-
     const errorHandler = (err) => {
       console.error("Erreur GPS:", err);
       fetchIPLocation();
     };
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
       watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
     } else {
       fetchIPLocation();
     }
-
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
@@ -684,7 +679,7 @@ export default function GPS() {
       setSelectedGroup(null);
     }
     setSidebarOpen(true);
-  
+ 
     if (mapRef.current) {
       mapRef.current.closePopup();
     }
@@ -693,7 +688,7 @@ export default function GPS() {
   const [overlayTimeout, setOverlayTimeout] = useState(null);
   const handleOverlayChange = useCallback((overlayName, isChecked) => {
     if (overlayTimeout) clearTimeout(overlayTimeout);
-  
+ 
     setOverlayTimeout(setTimeout(() => {
       const newOverlays = new Set(activeOverlays);
       if (isChecked) {
@@ -738,35 +733,35 @@ export default function GPS() {
           -webkit-font-smoothing: antialiased;
           transition: opacity 0.15s ease-out;
         }
-      
+     
         .overlay-labels-dark {
           mix-blend-mode: multiply;
           filter: contrast(1.6) brightness(0.8) saturate(1.1) blur(0.1px);
           transform: translate3d(0,0,0);
           transition: opacity 0.15s ease-out;
         }
-      
+     
         .overlay-roads-fluid {
           mix-blend-mode: soft-light;
           filter: contrast(0.8) brightness(1.1) saturate(0.6) blur(0.3px) hue-rotate(-10deg);
           transform: translate3d(0,0,0);
           transition: opacity 0.15s ease-out;
         }
-      
+     
         .overlay-districts-soft {
           mix-blend-mode: overlay;
           filter: contrast(0.7) brightness(1.05) saturate(0.5) blur(0.4px) opacity(0.8);
           transform: translate3d(0,0,0);
           transition: opacity 0.15s ease-out;
         }
-      
+     
         .overlay-infrastructure-soft {
           mix-blend-mode: color-burn;
           filter: contrast(0.9) brightness(1.15) saturate(0.4) blur(0.3px) sepia(0.1);
           transform: translate3d(0,0,0);
           transition: opacity 0.15s ease-out;
         }
-      
+     
         .overlay-hydro-features {
           mix-blend-mode: luminosity;
           filter: contrast(0.6) brightness(1.1) saturate(0.3) blur(0.5px) hue-rotate(15deg);
@@ -777,7 +772,7 @@ export default function GPS() {
           filter: blur(0.05px);
           transform: translate3d(0,0,0);
         }
-      
+     
         .leaflet-overlay-pane {
           backdrop-filter: blur(0.1px);
           -webkit-backdrop-filter: blur(0.1px);
@@ -797,7 +792,7 @@ export default function GPS() {
           color: #1f2937 !important;
           font-weight: 500;
         }
-      
+     
         .satellite-toggle-btn {
           position: absolute;
           top: 80px;
@@ -874,7 +869,7 @@ export default function GPS() {
           max-height: 80vh;
           overflow-y: auto;
         }
-      
+     
         .satellite-controls {
           position: absolute;
           top: 140px;
@@ -972,18 +967,18 @@ export default function GPS() {
           cursor: pointer;
           color: #1f2937;
         }
-      
+     
         .overlay-toggle:hover {
           background: rgba(59, 130, 246, 0.08);
           transform: translateX(3px);
         }
-      
+     
         .overlay-toggle input {
           margin-right: 10px;
           accent-color: #3b82f6;
           transform: scale(1.15);
         }
-      
+     
         .intensity-slider {
           width: 100%;
           margin: 12px 0;
@@ -1008,7 +1003,7 @@ export default function GPS() {
         .filter-slider:hover {
           transform: scaleY(1.15);
         }
-      
+     
         .controls-header {
           margin: 0 0 16px 0;
           font-size: 16px;
@@ -1018,7 +1013,7 @@ export default function GPS() {
           align-items: center;
           gap: 8px;
         }
-      
+     
         .intensity-label {
           font-size: 13px;
           color: #374151;
@@ -1203,7 +1198,7 @@ export default function GPS() {
             max-width: 250px;
             padding: 16px;
           }
-        
+       
           .user-sidebar {
             width: 250px;
             right: ${sidebarOpen ? '0' : '-250px'};
@@ -1328,7 +1323,7 @@ export default function GPS() {
                 tileSize={hdMode ? 512 : 256}
                 zoomOffset={hdMode ? -1 : 0}
               />
-            
+           
               {satelliteOverlays.map((overlay) =>
                 activeOverlays.has(overlay.name) ? (
                   <div key={overlay.name} style={{opacity: overlayIntensity}}>
@@ -1462,7 +1457,7 @@ export default function GPS() {
           <span>🎨</span>
           <span>Éditeur de Cartes & Images</span>
         </div>
-      
+     
         {/* === Section Filtres des Cartes === */}
         <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "16px" }}>
           <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
@@ -1477,7 +1472,7 @@ export default function GPS() {
             />
             <span>Mode HD (Rendu Haute Résolution)</span>
           </label>
-        
+       
           <div className="intensity-label">
             Contraste: <span className="filter-value">{filters.contrast}%</span>
           </div>
@@ -1489,7 +1484,7 @@ export default function GPS() {
             value={filters.contrast}
             onChange={(e) => updateFilter("contrast", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Luminosité: <span className="filter-value">{filters.brightness}%</span>
           </div>
@@ -1501,7 +1496,7 @@ export default function GPS() {
             value={filters.brightness}
             onChange={(e) => updateFilter("brightness", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Saturation: <span className="filter-value">{filters.saturate}%</span>
           </div>
@@ -1513,7 +1508,7 @@ export default function GPS() {
             value={filters.saturate}
             onChange={(e) => updateFilter("saturate", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Flou: <span className="filter-value">{filters.blur}px</span>
           </div>
@@ -1525,7 +1520,7 @@ export default function GPS() {
             value={filters.blur}
             onChange={(e) => updateFilter("blur", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Teinte: <span className="filter-value">{filters.hueRotate}°</span>
           </div>
@@ -1537,7 +1532,7 @@ export default function GPS() {
             value={filters.hueRotate}
             onChange={(e) => updateFilter("hueRotate", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Sépia: <span className="filter-value">{filters.sepia}%</span>
           </div>
@@ -1549,7 +1544,7 @@ export default function GPS() {
             value={filters.sepia}
             onChange={(e) => updateFilter("sepia", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Inversion: <span className="filter-value">{filters.invert}%</span>
           </div>
@@ -1561,7 +1556,7 @@ export default function GPS() {
             value={filters.invert}
             onChange={(e) => updateFilter("invert", e.target.value)}
           />
-        
+       
           <div className="intensity-label">
             Niveaux de gris: <span className="filter-value">{filters.grayscale}%</span>
           </div>
@@ -1585,7 +1580,7 @@ export default function GPS() {
             value={filters.sharpness}
             onChange={(e) => updateFilter("sharpness", e.target.value)}
           />
-        
+       
           <button className="reset-btn" onClick={resetFilters}>
             ♻️ Réinitialiser les filtres
           </button>
@@ -1595,7 +1590,7 @@ export default function GPS() {
           <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
             📸 Traitement d'Images
           </h4>
-        
+       
           <div className="upload-section">
             <div style={{ marginBottom: "12px", fontSize: "12px", color: "#6b7280" }}>
               Uploadez une image pour la traiter
@@ -1606,7 +1601,7 @@ export default function GPS() {
             >
               📁 Choisir une image
             </button>
-          
+         
             {imageUpload && (
               <div style={{ marginTop: "12px" }}>
                 <img
@@ -1614,7 +1609,7 @@ export default function GPS() {
                   alt="Preview"
                   className="image-preview"
                 />
-              
+             
                 <div style={{ marginTop: "10px" }}>
                   <button
                     className="action-btn"
@@ -1623,7 +1618,7 @@ export default function GPS() {
                   >
                     {imageProcessing ? "⏳" : "🎨"} Appliquer filtres
                   </button>
-                
+               
                   <button
                     className="action-btn"
                     onClick={() => rotateImage(90)}
@@ -1631,7 +1626,7 @@ export default function GPS() {
                   >
                     {imageProcessing ? "⏳" : "🔄"} Rotation 90°
                   </button>
-                
+               
                   <button
                     className="action-btn"
                     onClick={createThumbnail}
@@ -1649,14 +1644,14 @@ export default function GPS() {
               <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "8px", color: "#374151" }}>
                 ✏️ Ajouter du texte
               </div>
-            
+           
               <input
                 type="text"
                 placeholder="Texte à ajouter..."
                 value={textOverlay.text}
                 onChange={(e) => setTextOverlay(prev => ({...prev, text: e.target.value}))}
               />
-            
+           
               <div style={{ display: "flex", gap: "8px" }}>
                 <input
                   type="number"
@@ -1679,7 +1674,7 @@ export default function GPS() {
                   style={{ width: "40px", padding: "2px" }}
                 />
               </div>
-            
+           
               <button
                 className="action-btn"
                 onClick={addTextToImage}
@@ -1696,7 +1691,7 @@ export default function GPS() {
               <div style={{ fontSize: "12px", fontWeight: "600", margin: "16px 0 8px 0", color: "#374151" }}>
                 📂 Images traitées ({Object.keys(processedImages).length})
               </div>
-            
+           
               <div className="processed-images">
                 {Object.entries(processedImages).map(([key, imageData]) => (
                   <div key={key} className="processed-image">
@@ -1711,7 +1706,7 @@ export default function GPS() {
                   </div>
                 ))}
               </div>
-            
+           
               <button
                 className="reset-btn"
                 onClick={() => setProcessedImages({})}
@@ -1737,7 +1732,7 @@ export default function GPS() {
           <span>🛰️</span>
           <span>Contrôles Satellite</span>
         </div>
-      
+     
         <div className="intensity-label">
           Intensité Overlays: {Math.round(overlayIntensity * 100)}%
         </div>
@@ -1750,7 +1745,7 @@ export default function GPS() {
           value={overlayIntensity}
           onChange={(e) => setOverlayIntensity(parseFloat(e.target.value))}
         />
-      
+     
         <div style={{marginTop: "18px"}}>
           {satelliteOverlays.map((overlay) => (
             <label key={overlay.name} className="overlay-toggle">
@@ -1780,7 +1775,7 @@ export default function GPS() {
               <h4 style={{ margin: "0 0 12px 0", color: "#1f2937", fontSize: "16px", fontWeight: "600" }}>
                 {selectedUser.firstName} {selectedUser.lastName}
               </h4>
-            
+           
               <div style={{ marginBottom: "8px" }}>
                 <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Email:</span>
                 <br />
@@ -1788,7 +1783,7 @@ export default function GPS() {
                   {selectedUser.email}
                 </a>
               </div>
-            
+           
               <div style={{ marginBottom: "8px" }}>
                 <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Rôle:</span>
                 <br />
@@ -1848,7 +1843,7 @@ export default function GPS() {
                 >
                   📧 Contacter
                 </button>
-              
+             
                 {!selectedUser.isCurrentUser && (
                   <button
                     style={{
@@ -1883,23 +1878,23 @@ export default function GPS() {
                   {selectedGroup.length} utilisateurs à cette position
                 </span>
               </div>
-            
+           
               {selectedGroup.map((u, index) => (
                 <div key={u._id} className="user-card">
                   <h5 style={{ margin: "0 0 10px 0", color: "#1f2937", fontSize: "14px", fontWeight: "600" }}>
                     {u.firstName} {u.lastName}
                   </h5>
-                
+               
                   <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
                     <a href={`mailto:${u.email}`} style={{ color: "#3b82f6", textDecoration: "none" }}>
                       {u.email}
                     </a>
                   </div>
-                
+               
                   <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>
                     {u.role === "admin" ? "👑 Admin" : "👷 Employé"}
                   </div>
-                
+               
                   <button
                     style={{
                       background: "#6b7280",
