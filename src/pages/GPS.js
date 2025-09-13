@@ -169,9 +169,11 @@ const LocationMarker = ({ userLocation, setUserInfo }) => {
      
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
-        const { city, country, suburb, neighbourhood, quarter } = response.data.address;
-        const neighborhood = suburb || neighbourhood || quarter || 'N/A';
-        setUserInfo({ city: city || '', country: country || '', neighborhood });
+        const address = response.data.address || {};
+        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || 'N/A';
+        const country = address.country || 'N/A';
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
+        setUserInfo({ city, country, neighborhood });
       } catch (error) {
         console.error("Erreur lors de la récupération de la localisation:", error);
       }
@@ -539,9 +541,7 @@ export default function GPS() {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     });
-    return (Array.isArray(response) ? response : []).filter(
-      (u) => ["employee", "admin"].includes(u.role) && u.isVerified && u.isApproved && u._id !== user._id
-    );
+    return Array.isArray(response) ? response : [];
   }, [token]);
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ["users", "gps"],
@@ -558,9 +558,11 @@ export default function GPS() {
       localStorage.setItem("current_gps", JSON.stringify(loc));
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${loc.lat}&lon=${loc.lng}`);
-        const { city, country, suburb, neighbourhood, quarter } = response.data.address || {};
-        const neighborhood = suburb || neighbourhood || quarter || 'N/A';
-        setUserInfo({ city: city || '', country: country || '', neighborhood });
+        const address = response.data.address || {};
+        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || 'N/A';
+        const country = address.country || 'N/A';
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
+        setUserInfo({ city, country, neighborhood });
         await $.ajax({
           url: "https://setrafbackend.onrender.com/api/users/update-location",
           method: "POST",
@@ -573,9 +575,9 @@ export default function GPS() {
             lat: loc.lat,
             lng: loc.lng,
             accuracy: loc.acc,
-            city: city || '',
-            country: country || '',
-            neighborhood: neighborhood
+            city,
+            country,
+            neighborhood
           }),
         });
       } catch (e) {
@@ -583,8 +585,8 @@ export default function GPS() {
       }
     };
     const errorHandler = (err) => console.error("Erreur GPS:", err);
-    navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
-    watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+    navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
+    watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
@@ -1337,10 +1339,20 @@ export default function GPS() {
                   email: user.email,
                   role: user.role,
                   isCurrentUser: true,
-                  location: currentLocation
+                  location: currentLocation,
+                  city: userInfo.city,
+                  country: userInfo.country,
+                  neighborhood: userInfo.neighborhood
                 })
               }}
-            />
+            >
+              <Popup>
+                Vous êtes ici<br />
+                Quartier: {userInfo.neighborhood}<br />
+                Latitude: {currentLocation.lat}<br />
+                Longitude: {currentLocation.lng}
+              </Popup>
+            </Marker>
             <Circle
               center={[currentLocation.lat, currentLocation.lng]}
               radius={currentLocation.acc || 30}
@@ -1357,9 +1369,9 @@ export default function GPS() {
         {Object.keys(groupByPosition).map((key) => {
           const group = groupByPosition[key];
           const { lat, lng } = group[0];
+          const distance = currentLocation ? haversineDistance([currentLocation.lat, currentLocation.lng], [lat, lng]) : Infinity;
           if (group.length === 1) {
             const u = group[0];
-            const distance = currentLocation ? haversineDistance([currentLocation.lat, currentLocation.lng], [lat, lng]) : Infinity;
             return (
               <Marker
                 key={u._id}
@@ -1368,18 +1380,32 @@ export default function GPS() {
                 eventHandlers={{
                   click: () => handleMarkerClick(u)
                 }}
-              />
+              >
+                <Popup>
+                  <strong>{u.firstName} {u.lastName}</strong><br />
+                  Quartier: {u.neighborhood || 'Inconnu'}<br />
+                  Latitude: {lat}<br />
+                  Longitude: {lng}<br />
+                  Distance: {distance.toFixed(2)} km<br />
+                  <small>Utilisateur connecté</small>
+                </Popup>
+              </Marker>
             );
           }
           return (
             <React.Fragment key={key}>
               <Marker
                 position={[lat, lng]}
-                icon={createCustomIcon(null, true)}
+                icon={createCustomIcon(null, true, false, 0, distance)}
                 eventHandlers={{
                   click: () => handleMarkerClick(group, true)
                 }}
-              />
+              >
+                <Popup>
+                  Groupe de {group.length} utilisateurs<br />
+                  Distance: {distance.toFixed(2)} km
+                </Popup>
+              </Marker>
               <Circle
                 center={[lat, lng]}
                 radius={50}
@@ -1743,7 +1769,7 @@ export default function GPS() {
                   {selectedUser.role === "admin" ? "👑 Administrateur" : "👷 Employé"}
                 </span>
               </div>
-              {selectedUser.isCurrentUser && selectedUser.location && (
+              {selectedUser.location && (
                 <div style={{ marginBottom: "8px" }}>
                   <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Position:</span>
                   <br />
@@ -1754,6 +1780,27 @@ export default function GPS() {
                   </span>
                 </div>
               )}
+              <div style={{ marginBottom: "8px" }}>
+                <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Ville:</span>
+                <br />
+                <span style={{ fontSize: "14px", color: "#374151" }}>
+                  {selectedUser.city || 'Inconnu'}
+                </span>
+              </div>
+              <div style={{ marginBottom: "8px" }}>
+                <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Pays:</span>
+                <br />
+                <span style={{ fontSize: "14px", color: "#374151" }}>
+                  {selectedUser.country || 'Inconnu'}
+                </span>
+              </div>
+              <div style={{ marginBottom: "8px" }}>
+                <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Quartier:</span>
+                <br />
+                <span style={{ fontSize: "14px", color: "#374151" }}>
+                  {selectedUser.neighborhood || 'Inconnu'}
+                </span>
+              </div>
               <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
                 <button
                   style={{
