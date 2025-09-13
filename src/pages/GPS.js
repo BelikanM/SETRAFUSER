@@ -162,7 +162,7 @@ class ImageProcessor {
 }
 
 // Icônes utilisateurs personnalisées
-const createCustomIcon = (role, isGroup = false, isCurrentUser = false) => {
+const createCustomIcon = (role, isGroup = false, isCurrentUser = false, heading = 0) => {
   const iconHtml = isGroup ? `
     <div style="
       background: linear-gradient(135deg, #9333ea, #7c3aed); 
@@ -198,8 +198,10 @@ const createCustomIcon = (role, isGroup = false, isCurrentUser = false) => {
           box-shadow: 0 4px 12px ${isCurrentUser ? "rgba(16,185,129,0.4)" : r.shadow}, 
                       0 0 0 2px ${isCurrentUser ? "rgba(16,185,129,0.2)" : r.shadow.replace("0.4", "0.2")};
           backdrop-filter: blur(2px); cursor: pointer;
-          transition: all 0.2s ease;">
-          ${isCurrentUser ? "👤" : r.label}
+          transition: all 0.2s ease;
+          transform: rotate(${isCurrentUser ? heading : 0}deg);
+        ">
+          ${isCurrentUser ? "↑" : r.label}
         </div>`;
     })();
 
@@ -339,6 +341,7 @@ export default function GPS() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [satelliteControlsOpen, setSatelliteControlsOpen] = useState(false);
+  const [heading, setHeading] = useState(0);
   
   // === États pour l'éditeur d'images (version frontend) ===
   const [editOpen, setEditOpen] = useState(false);
@@ -523,7 +526,7 @@ export default function GPS() {
     queryKey: ["users", "gps"],
     queryFn: fetchUsers,
     enabled: !!user && !!token,
-    refetchInterval: 30000,
+    refetchInterval: 5000,
   });
 
   // === GPS LIVE utilisateur ===
@@ -560,13 +563,34 @@ export default function GPS() {
 
     const errorHandler = (err) => console.error("Erreur GPS:", err);
 
-    navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true });
-    watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true });
+    navigator.geolocation.getCurrentPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
+    watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, errorHandler, { enableHighAccuracy: true, maximumAge: 0 });
 
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
   }, [user, token]);
+
+  // === Orientation pour améliorer la précision avec capteurs de mouvement ===
+  useEffect(() => {
+    const handleOrientation = (event) => {
+      let angle = event.alpha; // 0-360, 0 nord
+      if (event.webkitCompassHeading) angle = event.webkitCompassHeading; // pour iOS
+      setHeading(angle);
+    };
+
+    const startOrientation = async () => {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission !== 'granted') return;
+      }
+      window.addEventListener('deviceorientation', handleOrientation);
+    };
+
+    startOrientation();
+
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, []);
 
   // === Gestion des clics sur les marqueurs ===
   const handleMarkerClick = (userData, isGroup = false) => {
@@ -1357,7 +1381,7 @@ export default function GPS() {
           <>
             <Marker 
               position={[currentLocation.lat, currentLocation.lng]} 
-              icon={createCustomIcon("employee", false, true)}
+              icon={createCustomIcon("employee", false, true, heading)}
               eventHandlers={{
                 click: () => handleMarkerClick({
                   firstName: user.firstName || "Vous",
