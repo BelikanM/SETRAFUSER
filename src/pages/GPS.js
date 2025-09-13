@@ -161,7 +161,7 @@ class ImageProcessor {
     });
   }
 }
-const LocationMarker = ({ userLocation, setUserInfo }) => {
+const LocationMarker = ({ currentLocation, setUserInfo, heading, userInfo }) => {
   const map = useMapEvents({
     moveend: async () => {
       const center = map.getCenter();
@@ -170,16 +170,37 @@ const LocationMarker = ({ userLocation, setUserInfo }) => {
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
         const address = response.data.address || {};
-        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || null;
-        const country = address.country || null;
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
+        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || '';
+        const country = address.country || '';
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
         setUserInfo({ city: city ? city.trim().toLowerCase() : null, country: country ? country.trim().toLowerCase() : null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
       } catch (error) {
         console.error("Erreur lors de la récupération de la localisation:", error);
       }
     },
   });
-  return userLocation ? <Marker position={userLocation} /> : null;
+  return currentLocation ? (
+    <>
+      <Marker position={[currentLocation.lat, currentLocation.lng]} icon={createCustomIcon("employee", false, true, heading)}>
+        <Popup>
+          Vous êtes ici<br />
+          Quartier: {userInfo.neighborhood || 'Inconnu'}<br />
+          Latitude: {currentLocation.lat}<br />
+          Longitude: {currentLocation.lng}
+        </Popup>
+      </Marker>
+      <Circle
+        center={[currentLocation.lat, currentLocation.lng]}
+        radius={currentLocation.acc || 30}
+        pathOptions={{
+          color: "#10b981",
+          fillOpacity: 0.12,
+          weight: 2,
+          dashArray: "5, 5"
+        }}
+      />
+    </>
+  ) : null;
 };
 // Icônes utilisateurs personnalisées
 const createCustomIcon = (role, isGroup = false, isCurrentUser = false, heading = 0, distance = null) => {
@@ -557,9 +578,9 @@ export default function GPS() {
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${loc.lat}&lon=${loc.lng}`);
         const address = response.data.address || {};
-        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || null;
-        const country = address.country || null;
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
+        const city = address.city || address.town || address.village || address.hamlet || address.county || '';
+        const country = address.country || '';
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
         setUserInfo({ city: city ? city.trim().toLowerCase() : null, country: country ? country.trim().toLowerCase() : null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
         await $.ajax({
           url: "https://setrafbackend.onrender.com/api/users/update-location",
@@ -586,7 +607,7 @@ export default function GPS() {
     const fetchIPLocation = async () => {
       try {
         const ipResponse = await axios.get('https://ipapi.co/json/');
-        const { latitude: lat, longitude: lng, city, country_name: country } = ipResponse.data;
+        const { latitude: lat, longitude: lng, city: ipCity, country_name: country } = ipResponse.data;
         if (!lat || !lng) throw new Error("No lat/lon from IP");
         const loc = { lat, lng, acc: 10000 };
         setCurrentLocation(loc);
@@ -594,8 +615,9 @@ export default function GPS() {
         // reverse geocode
         const geoResponse = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
         const address = geoResponse.data.address || {};
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
-        setUserInfo({ city: city || address.city || null, country: country || address.country || null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
+        const geoCity = address.city || address.town || address.village || address.hamlet || address.county || '';
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
+        setUserInfo({ city: ipCity || geoCity ? (ipCity || geoCity).trim().toLowerCase() : null, country: country || address.country ? (country || address.country).trim().toLowerCase() : null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
         // update backend
         await $.ajax({
           url: "https://setrafbackend.onrender.com/api/users/update-location",
@@ -609,8 +631,8 @@ export default function GPS() {
             lat: loc.lat,
             lng: loc.lng,
             accuracy: loc.acc,
-            city: city || address.city || null,
-            country: country || address.country || null,
+            city: ipCity || geoCity ? (ipCity || geoCity).trim().toLowerCase() : null,
+            country: country || address.country ? (country || address.country).trim().toLowerCase() : null,
             neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null
           }),
         });
@@ -1370,44 +1392,7 @@ export default function GPS() {
           </BaseLayer>
         </LayersControl>
         {/* Position utilisateur */}
-        {currentLocation && (
-          <>
-            <Marker
-              position={[currentLocation.lat, currentLocation.lng]}
-              icon={createCustomIcon("employee", false, true, heading)}
-              eventHandlers={{
-                click: () => handleMarkerClick({
-                  firstName: user.firstName || "Vous",
-                  lastName: user.lastName || "",
-                  email: user.email,
-                  role: user.role,
-                  isCurrentUser: true,
-                  location: currentLocation,
-                  city: userInfo.city,
-                  country: userInfo.country,
-                  neighborhood: userInfo.neighborhood
-                })
-              }}
-            >
-              <Popup>
-                Vous êtes ici<br />
-                Quartier: {userInfo.neighborhood || 'Inconnu'}<br />
-                Latitude: {currentLocation.lat}<br />
-                Longitude: {currentLocation.lng}
-              </Popup>
-            </Marker>
-            <Circle
-              center={[currentLocation.lat, currentLocation.lng]}
-              radius={currentLocation.acc || 30}
-              pathOptions={{
-                color: "#10b981",
-                fillOpacity: 0.12,
-                weight: 2,
-                dashArray: "5, 5"
-              }}
-            />
-          </>
-        )}
+        <LocationMarker currentLocation={currentLocation} setUserInfo={setUserInfo} heading={heading} userInfo={userInfo} />
         {/* Autres utilisateurs */}
         {Object.keys(groupByPosition).map((key) => {
           const group = groupByPosition[key];
@@ -1462,7 +1447,6 @@ export default function GPS() {
             </React.Fragment>
           );
         })}
-<LocationMarker userLocation={currentLocation ? [currentLocation.lat, currentLocation.lng] : null} setUserInfo={setUserInfo} />
       </MapContainer>
       {/* === Bouton Toggle Éditeur === */}
       <div
