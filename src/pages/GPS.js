@@ -170,10 +170,10 @@ const LocationMarker = ({ userLocation, setUserInfo }) => {
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
         const address = response.data.address || {};
-        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || 'N/A';
-        const country = address.country || 'N/A';
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
-        setUserInfo({ city, country, neighborhood });
+        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || null;
+        const country = address.country || null;
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
+        setUserInfo({ city: city ? city.trim().toLowerCase() : null, country: country ? country.trim().toLowerCase() : null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
       } catch (error) {
         console.error("Erreur lors de la récupération de la localisation:", error);
       }
@@ -557,10 +557,10 @@ export default function GPS() {
       try {
         const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${loc.lat}&lon=${loc.lng}`);
         const address = response.data.address || {};
-        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || 'N/A';
-        const country = address.country || 'N/A';
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
-        setUserInfo({ city, country, neighborhood });
+        const city = address.city || address.town || address.village || address.hamlet || address.municipality || address.county || null;
+        const country = address.country || null;
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
+        setUserInfo({ city: city ? city.trim().toLowerCase() : null, country: country ? country.trim().toLowerCase() : null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
         await $.ajax({
           url: "https://setrafbackend.onrender.com/api/users/update-location",
           method: "POST",
@@ -573,9 +573,9 @@ export default function GPS() {
             lat: loc.lat,
             lng: loc.lng,
             accuracy: loc.acc,
-            city,
-            country,
-            neighborhood
+            city: city ? city.trim().toLowerCase() : null,
+            country: country ? country.trim().toLowerCase() : null,
+            neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null
           }),
         });
       } catch (e) {
@@ -594,8 +594,8 @@ export default function GPS() {
         // reverse geocode
         const geoResponse = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
         const address = geoResponse.data.address || {};
-        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || 'N/A';
-        setUserInfo({ city: city || address.city || 'N/A', country: country || address.country || 'N/A', neighborhood });
+        const neighborhood = address.suburb || address.neighbourhood || address.quarter || address.hamlet || null;
+        setUserInfo({ city: city || address.city || null, country: country || address.country || null, neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null });
         // update backend
         await $.ajax({
           url: "https://setrafbackend.onrender.com/api/users/update-location",
@@ -609,9 +609,9 @@ export default function GPS() {
             lat: loc.lat,
             lng: loc.lng,
             accuracy: loc.acc,
-            city: city || address.city || 'N/A',
-            country: country || address.country || 'N/A',
-            neighborhood
+            city: city || address.city || null,
+            country: country || address.country || null,
+            neighborhood: neighborhood ? neighborhood.trim().toLowerCase() : null
           }),
         });
       } catch (e) {
@@ -683,17 +683,17 @@ export default function GPS() {
     }, 100));
   }, [activeOverlays, overlayTimeout]);
   // === Filtrage recherche ===
-  const filteredUsers = users.filter((u) =>
-    `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter((u) => u._id !== user._id && `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase()));
   // === Grouper les utilisateurs par position ===
   const groupByPosition = {};
   filteredUsers.forEach((u) => {
-    const lat = u.lastLocation?.lat || 48.8566 + Math.random() * 0.01;
-    const lng = u.lastLocation?.lng || 2.3522 + Math.random() * 0.01;
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-    if (!groupByPosition[key]) groupByPosition[key] = [];
-    groupByPosition[key].push({ ...u, lat, lng });
+    if (u.lastLocation) {
+      const lat = u.lastLocation.lat;
+      const lng = u.lastLocation.lng;
+      const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      if (!groupByPosition[key]) groupByPosition[key] = [];
+      groupByPosition[key].push({ ...u, lat, lng });
+    }
   });
   const { BaseLayer } = LayersControl;
   const satelliteOverlays = createAdvancedSatelliteOverlays();
@@ -1391,7 +1391,7 @@ export default function GPS() {
             >
               <Popup>
                 Vous êtes ici<br />
-                Quartier: {userInfo.neighborhood}<br />
+                Quartier: {userInfo.neighborhood || 'Inconnu'}<br />
                 Latitude: {currentLocation.lat}<br />
                 Longitude: {currentLocation.lng}
               </Popup>
@@ -1961,13 +1961,13 @@ export default function GPS() {
             <strong>UTM 32S:</strong> X {utmCoords.x} m, Y {utmCoords.y} m
           </div>
           <div>
-            <strong>Ville:</strong> {userInfo.city}
+            <strong>Ville:</strong> {userInfo.city || 'Inconnu'}
           </div>
           <div>
-            <strong>Pays:</strong> {userInfo.country}
+            <strong>Pays:</strong> {userInfo.country || 'Inconnu'}
           </div>
           <div>
-            <strong>Quartier:</strong> {userInfo.neighborhood}
+            <strong>Quartier:</strong> {userInfo.neighborhood || 'Inconnu'}
           </div>
         </div>
       )}
