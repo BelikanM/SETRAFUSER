@@ -15,9 +15,53 @@ L.Icon.Default.mergeOptions({
 const RealtimeMap = () => {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const mapRef = useRef();
 
-  // Récupération sécurisée des utilisateurs
+  // Fonction pour obtenir la position de l'utilisateur
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+
+          // Mise à jour de la position sur le serveur
+          try {
+            const token = localStorage.getItem("token");
+            const userId = localStorage.getItem("userId"); // Assurez-vous d'avoir stocké l'userId lors du login
+            
+            await axios.post("/api/users/update-location", 
+              {
+                userId,
+                lat: latitude,
+                lng: longitude,
+                accuracy
+              },
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+          } catch (err) {
+            console.error("Erreur mise à jour position:", err);
+          }
+        },
+        (error) => {
+          console.error("Erreur géolocalisation:", error);
+          setError("Impossible d'obtenir votre position");
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      setError("Géolocalisation non supportée par votre navigateur");
+    }
+  };
+
+  // Récupération des utilisateurs avec leurs positions
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -36,20 +80,31 @@ const RealtimeMap = () => {
       setUsers(Array.isArray(res.data) ? res.data : []);
       setError(null);
     } catch (err) {
-      console.error("Erreur récupération utilisateurs :", err);
+      console.error("Erreur récupération utilisateurs:", err);
       setError(err.message);
       setUsers([]);
     }
   };
 
+  // Effet pour la géolocalisation et la mise à jour des positions
   useEffect(() => {
+    getUserLocation();
+    const locationInterval = setInterval(getUserLocation, 10000); // Mise à jour toutes les 10 secondes
+
     fetchUsers();
-    const interval = setInterval(fetchUsers, 5000);
-    return () => clearInterval(interval);
+    const usersInterval = setInterval(fetchUsers, 5000);
+
+    return () => {
+      clearInterval(locationInterval);
+      clearInterval(usersInterval);
+    };
   }, []);
 
+  // Centrer la carte sur la moyenne des positions
   const centerPosition = () => {
+    if (userLocation) return [userLocation.lat, userLocation.lng];
     if (!users.length) return [0, 0];
+    
     const validUsers = users.filter(user => 
       user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number'
     );
@@ -68,7 +123,7 @@ const RealtimeMap = () => {
     <div style={{ height: "100vh", width: "100%" }}>
       <MapContainer
         center={centerPosition()}
-        zoom={2}
+        zoom={13}
         style={{ height: "100%", width: "100%" }}
         ref={mapRef}
       >
@@ -77,6 +132,26 @@ const RealtimeMap = () => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
+        {/* Marqueur pour la position de l'utilisateur actuel */}
+        {userLocation && (
+          <Marker
+            position={[userLocation.lat, userLocation.lng]}
+            icon={new L.Icon({
+              iconUrl: require("leaflet/dist/images/marker-icon-2x.png"),
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+            })}
+          >
+            <Popup>
+              <div style={{ textAlign: "center" }}>
+                <p>Ma position</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Marqueurs pour tous les autres utilisateurs */}
         {users.map((user) => (
           user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number' && (
             <Marker
