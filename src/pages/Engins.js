@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import axios from "axios";
+import io from "socket.io-client";
 
 // Fix pour les icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -17,6 +18,7 @@ const RealtimeMap = () => {
   const [error, setError] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const mapRef = useRef();
+  const socket = useRef(null);
 
   // Fonction pour obtenir la position de l'utilisateur
   const getUserLocation = () => {
@@ -25,7 +27,6 @@ const RealtimeMap = () => {
         async (position) => {
           const { latitude, longitude, accuracy } = position.coords;
           setUserLocation({ lat: latitude, lng: longitude });
-
           // Mise à jour de la position sur le serveur
           try {
             const token = localStorage.getItem("token");
@@ -86,7 +87,21 @@ const RealtimeMap = () => {
     }
   };
 
-  // Effet pour la géolocalisation et la mise à jour des positions
+  // Centrer la carte sur la moyenne des positions
+  const centerPosition = () => {
+    if (userLocation) return [userLocation.lat, userLocation.lng];
+    if (!users.length) return [48.8566, 2.3522];
+    
+    const validUsers = users.filter(user => 
+      user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number'
+    );
+    if (!validUsers.length) return [48.8566, 2.3522];
+    
+    const latSum = validUsers.reduce((sum, u) => sum + u.position.lat, 0);
+    const lngSum = validUsers.reduce((sum, u) => sum + u.position.lng, 0);
+    return [latSum / validUsers.length, lngSum / validUsers.length];
+  };
+
   useEffect(() => {
     getUserLocation();
     const locationInterval = setInterval(getUserLocation, 10000); // Mise à jour toutes les 10 secondes
@@ -100,20 +115,63 @@ const RealtimeMap = () => {
     };
   }, []);
 
-  // Centrer la carte sur la moyenne des positions
-  const centerPosition = () => {
-    if (userLocation) return [userLocation.lat, userLocation.lng];
-    if (!users.length) return [0, 0];
-    
-    const validUsers = users.filter(user => 
-      user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number'
-    );
-    if (!validUsers.length) return [0, 0];
-    
-    const latSum = validUsers.reduce((sum, u) => sum + u.position.lat, 0);
-    const lngSum = validUsers.reduce((sum, u) => sum + u.position.lng, 0);
-    return [latSum / validUsers.length, lngSum / validUsers.length];
-  };
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      socket.current = io();
+      socket.current.on("connect", () => {
+        socket.current.emit("authenticate", token);
+      });
+
+      socket.current.on("user-location-updated", (data) => {
+        setUsers((prevUsers) =>
+          prevUsers.map((u) =>
+            u._id.toString() === data.userId.toString()
+              ? {
+                  ...u,
+                  position: data.position,
+                  lastSeen: data.lastUpdate,
+                  isOnline: data.isOnline,
+                }
+              : u
+          )
+        );
+      });
+
+      socket.current.on("user-online", (data) => {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u._id.toString() === data.userId.toString()
+              ? { ...u, isOnline: true }
+              : u
+          )
+        );
+      });
+
+      socket.current.on("user-offline", (data) => {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u._id.toString() === data.userId.toString()
+              ? { ...u, isOnline: false }
+              : u
+          )
+        );
+      });
+    }
+
+    return () => {
+      if (socket.current) {
+        socket.current.disconnect();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mapRef.current) {
+      const center = centerPosition();
+      mapRef.current.flyTo(center, mapRef.current.getZoom() || 13);
+    }
+  }, [users, userLocation]);
 
   if (error) {
     return <div className="error-message">Erreur: {error}</div>;
@@ -137,10 +195,12 @@ const RealtimeMap = () => {
           <Marker
             position={[userLocation.lat, userLocation.lng]}
             icon={new L.Icon({
-              iconUrl: require("leaflet/dist/images/marker-icon-2x.png"),
+              iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
+              iconUrl: require("leaflet/dist/images/marker-icon.png"),
               iconSize: [25, 41],
               iconAnchor: [12, 41],
               popupAnchor: [1, -34],
+              shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
             })}
           >
             <Popup>
