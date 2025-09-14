@@ -1,249 +1,221 @@
-import React, { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import axios from "axios";
-import io from "socket.io-client";
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import axios from 'axios';
+import L from 'leaflet';
+import { db } from '../firebaseConfig';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
-// Fix pour les icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
-  iconUrl: require("leaflet/dist/images/marker-icon.png"),
-  shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-const RealtimeMap = () => {
-  const [users, setUsers] = useState([]);
-  const [error, setError] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
-  const mapRef = useRef();
-  const socket = useRef(null);
+const haversineDistance = (coords1, coords2) => {
+  const toRad = (angle) => (Math.PI / 180) * angle;
+  const R = 6371; // Rayon de la Terre en km
+  const dLat = toRad(coords2[0] - coords1[0]);
+  const dLon = toRad(coords2[1] - coords1[1]);
+  const lat1 = toRad(coords1[0]);
+  const lat2 = toRad(coords2[0]);
 
-  // Fonction pour obtenir la position de l'utilisateur
-  const getUserLocation = () => {
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const Recenter = ({ pos }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (pos) {
+      map.setView(pos, map.getZoom());
+    }
+  }, [pos, map]);
+  return null;
+};
+
+const Map = ({ user, locations, highlightedUserId }) => {
+  const [userLocation, setUserLocation] = useState(null);
+  const [userInfo, setUserInfo] = useState({ city: '', country: '', neighborhood: '' });
+  const [connectedUsers, setConnectedUsers] = useState({});
+
+  useEffect(() => {
+    const fetchUserData = async (userId) => {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      return userDoc.exists() ? userDoc.data() : null;
+    };
+
+    const updateConnectedUsers = async () => {
+      const usersData = {};
+      for (const userId of Object.keys(locations)) {
+        const userData = await fetchUserData(userId);
+        if (userData) {
+          usersData[userId] = userData;
+        }
+      }
+      setConnectedUsers(usersData);
+    };
+
+    updateConnectedUsers();
+
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      const watchId = navigator.geolocation.watchPosition(
         async (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          setUserLocation({ lat: latitude, lng: longitude });
-          // Mise à jour de la position sur le serveur
+          const { latitude, longitude } = position.coords;
+          setUserLocation([latitude, longitude]);
+
           try {
-            const token = localStorage.getItem("token");
-            const userId = localStorage.getItem("userId"); // Assurez-vous d'avoir stocké l'userId lors du login
-            
-            await axios.post("/api/users/update-location", 
-              {
-                userId,
-                lat: latitude,
-                lng: longitude,
-                accuracy
-              },
-              {
-                headers: { Authorization: `Bearer ${token}` }
-              }
-            );
-          } catch (err) {
-            console.error("Erreur mise à jour position:", err);
+            const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+            const { city, country, suburb, neighbourhood, quarter } = response.data.address;
+            const neighborhood = suburb || neighbourhood || quarter || 'N/A';
+            const newUserInfo = { city: city || '', country: country || '', neighborhood };
+            setUserInfo(newUserInfo);
+
+            if (user) {
+              const userDocRef = doc(db, 'users', user.uid);
+              await updateDoc(userDocRef, { location: [latitude, longitude], ...newUserInfo });
+            }
+          } catch (error) {
+            console.error("Erreur lors de la récupération de la localisation:", error);
           }
         },
         (error) => {
-          console.error("Erreur géolocalisation:", error);
-          setError("Impossible d'obtenir votre position");
+          console.error("Erreur lors de la récupération de la position GPS:", error);
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
       );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
     } else {
-      setError("Géolocalisation non supportée par votre navigateur");
+      console.error("La géolocalisation n'est pas supportée par ce navigateur.");
+    }
+  }, [user, locations]);
+
+  const getMarkerColor = (distance, isConnectedUser, isCloseUser) => {
+    if (isCloseUser) {
+      return '#FF00FF'; // Magenta pour l'utilisateur très proche avec appareil
+    } else if (isConnectedUser && distance < 0.1) {
+      return '#FFFF00'; // Jaune pour l'utilisateur connecté très proche
+    } else if (distance < 0.1) {
+      return '#FF0000'; // Rouge
+    } else if (distance < 0.5) {
+      return '#FFA500'; // Orange
+    } else if (distance < 1) {
+      return '#00FF00'; // Vert
+    } else {
+      return '#0000FF'; // Bleu
     }
   };
-
-  // Récupération des utilisateurs avec leurs positions
-  const fetchUsers = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Token d'authentification manquant");
-      }
-
-      const res = await axios.get("/api/users/with-positions", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.data) {
-        throw new Error("Données invalides reçues du serveur");
-      }
-
-      setUsers(Array.isArray(res.data) ? res.data : []);
-      setError(null);
-    } catch (err) {
-      console.error("Erreur récupération utilisateurs:", err);
-      setError(err.message);
-      setUsers([]);
-    }
-  };
-
-  // Centrer la carte sur la moyenne des positions
-  const centerPosition = () => {
-    if (userLocation) return [userLocation.lat, userLocation.lng];
-    if (!users.length) return [48.8566, 2.3522];
-    
-    const validUsers = users.filter(user => 
-      user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number'
-    );
-    if (!validUsers.length) return [48.8566, 2.3522];
-    
-    const latSum = validUsers.reduce((sum, u) => sum + u.position.lat, 0);
-    const lngSum = validUsers.reduce((sum, u) => sum + u.position.lng, 0);
-    return [latSum / validUsers.length, lngSum / validUsers.length];
-  };
-
-  useEffect(() => {
-    getUserLocation();
-    const locationInterval = setInterval(getUserLocation, 10000); // Mise à jour toutes les 10 secondes
-
-    fetchUsers();
-    const usersInterval = setInterval(fetchUsers, 5000);
-
-    return () => {
-      clearInterval(locationInterval);
-      clearInterval(usersInterval);
-    };
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      socket.current = io();
-      socket.current.on("connect", () => {
-        socket.current.emit("authenticate", token);
-      });
-
-      socket.current.on("user-location-updated", (data) => {
-        setUsers((prevUsers) =>
-          prevUsers.map((u) =>
-            u._id.toString() === data.userId.toString()
-              ? {
-                  ...u,
-                  position: data.position,
-                  lastSeen: data.lastUpdate,
-                  isOnline: data.isOnline,
-                }
-              : u
-          )
-        );
-      });
-
-      socket.current.on("user-online", (data) => {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u._id.toString() === data.userId.toString()
-              ? { ...u, isOnline: true }
-              : u
-          )
-        );
-      });
-
-      socket.current.on("user-offline", (data) => {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u._id.toString() === data.userId.toString()
-              ? { ...u, isOnline: false }
-              : u
-          )
-        );
-      });
-    }
-
-    return () => {
-      if (socket.current) {
-        socket.current.disconnect();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (mapRef.current) {
-      const center = centerPosition();
-      mapRef.current.flyTo(center, mapRef.current.getZoom() || 13);
-    }
-  }, [users, userLocation]);
-
-  if (error) {
-    return <div className="error-message">Erreur: {error}</div>;
-  }
 
   return (
-    <div style={{ height: "100vh", width: "100%" }}>
-      <MapContainer
-        center={centerPosition()}
-        zoom={13}
-        style={{ height: "100%", width: "100%" }}
-        ref={mapRef}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+    <div style={{ height: '250px', width: '100%', marginBottom: '20px' }}>
+      {userLocation ? (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+            <h4>Ville: {userInfo.city}</h4>
+            <h4>Pays: {userInfo.country}</h4>
+            <h4>Quartier: {userInfo.neighborhood}</h4>
+          </div>
+          <MapContainer center={userLocation} zoom={15} style={{ height: '100%', width: '100%' }}>
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Recenter pos={userLocation} />
+            {userLocation && (
+              <Marker position={userLocation}>
+                <Popup>
+                  Vous êtes ici<br />
+                  Quartier: {userInfo.neighborhood}<br />
+                  Latitude: {userLocation[0]}<br />
+                  Longitude: {userLocation[1]}
+                </Popup>
+              </Marker>
+            )}
+            {Object.entries(locations).map(([userId, location]) => {
+              const distance = haversineDistance(userLocation, location);
+              const isConnectedUser = userId === highlightedUserId;
+              const userData = connectedUsers[userId];
+              const hasDevices = userData && userData.devices && userData.devices.length > 0;
+              const isCloseUser = isConnectedUser && hasDevices && distance < 0.1;
+              const markerColor = getMarkerColor(distance, isConnectedUser, isCloseUser);
 
-        {/* Marqueur pour la position de l'utilisateur actuel */}
-        {userLocation && (
-          <Marker
-            position={[userLocation.lat, userLocation.lng]}
-            icon={new L.Icon({
-              iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
-              iconUrl: require("leaflet/dist/images/marker-icon.png"),
-              iconSize: [25, 41],
-              iconAnchor: [12, 41],
-              popupAnchor: [1, -34],
-              shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
-            })}
-          >
-            <Popup>
-              <div style={{ textAlign: "center" }}>
-                <p>Ma position</p>
-              </div>
-            </Popup>
-          </Marker>
-        )}
-
-        {/* Marqueurs pour tous les autres utilisateurs */}
-        {users.map((user) => (
-          user.position && typeof user.position.lat === 'number' && typeof user.position.lng === 'number' && (
-            <Marker
-              key={user._id}
-              position={[user.position.lat, user.position.lng]}
-            >
-              <Popup>
-                <div style={{ textAlign: "center" }}>
-                  {user.profilePhoto && (
-                    <img
-                      src={`/${user.profilePhoto}`}
-                      alt={`${user.firstName} ${user.lastName}`}
-                      style={{ width: 50, height: 50, borderRadius: "50%" }}
-                      onError={(e) => e.target.style.display = 'none'}
+              return (
+                <Marker
+                  key={userId}
+                  position={location}
+                  icon={L.divIcon({
+                    className: 'my-custom-pin',
+                    iconAnchor: [0, 24],
+                    labelAnchor: [-6, 0],
+                    popupAnchor: [0, -36],
+                    html: `
+                      <span style="background-color: ${markerColor};width: 1.5rem;height: 1.5rem;display: block;border-radius: 50%;opacity: 0.8;border: 2px solid #fff;box-shadow: 0 0 3px #000;"></span>
+                      ${isConnectedUser ? '<div class="connected-user-marker"></div>' : ''}
+                      ${isCloseUser ? '<div class="close-user-marker"></div>' : ''}
+                    `,
+                  })}
+                >
+                  <Popup>
+                    {userData ? (
+                      <>
+                        <strong>{userData.displayName}</strong><br />
+                        Quartier: {userData.neighborhood || 'Inconnu'}<br />
+                        Latitude: {location[0]}<br />
+                        Longitude: {location[1]}<br />
+                        Distance: {distance.toFixed(2)} km<br />
+                        <small>Utilisateur connecté</small>
+                        {isCloseUser && <small> - Très proche avec appareil</small>}<br />
+                        {hasDevices ? (
+                          <>
+                            Appareils:<br />
+                            <ul>
+                              {userData.devices.map((device, idx) => (
+                                <li key={idx}>{device}</li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <small>Aucun appareil correspondant</small>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <strong>Utilisateur suivi</strong><br />
+                        Latitude: {location[0]}<br />
+                        Longitude: {location[1]}<br />
+                        Distance: {distance.toFixed(2)} km<br />
+                        <small>Aucun appareil correspondant</small>
+                      </>
+                    )}
+                  </Popup>
+                  {isConnectedUser && (
+                    <Marker
+                      position={location}
+                      icon={L.divIcon({
+                        className: 'user-trail-marker',
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5],
+                        popupAnchor: [0, -5],
+                        html: '<div style="background-color: #00FF00;width: 10px;height: 10px;border-radius: 50%;"></div>',
+                      })}
                     />
                   )}
-                  <p>
-                    {user.firstName} {user.lastName}
-                  </p>
-                  <p>Role : {user.role}</p>
-                  <p>
-                    Dernière mise à jour :{" "}
-                    {new Date(user.position.lastUpdate).toLocaleString()}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          )
-        ))}
-      </MapContainer>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </>
+      ) : (
+        <p>Chargement de la localisation...</p>
+      )}
     </div>
   );
 };
 
-export default RealtimeMap;
+export default Map;
