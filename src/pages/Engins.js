@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import io from "socket.io-client";
-import jwtDecode from 'jwt-decode';
 // Correction pour icônes Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -43,22 +42,20 @@ export default function UserMap() {
         prevUsers.map((u) => {
           if (u._id.toString() === data.userId.toString()) {
             let newDevices = [...(u.devices || [])];
-            if (data.device) {
-              const deviceIndex = newDevices.findIndex((d) => d.id === data.device.id);
-              if (deviceIndex !== -1) {
-                newDevices[deviceIndex] = data.device;
-              } else {
-                newDevices.push(data.device);
-              }
+            const deviceIndex = newDevices.findIndex((d) => d.id === data.device.id);
+            if (deviceIndex !== -1) {
+              newDevices[deviceIndex] = data.device;
+            } else {
+              newDevices.push(data.device);
             }
             return {
               ...u,
               devices: newDevices,
-              isOnline: data.isOnline ?? u.isOnline,
-              lastLocation: data.lastLocation ?? u.lastLocation,
-              city: data.city ?? u.city,
-              country: data.country ?? u.country,
-              neighborhood: data.neighborhood ?? u.neighborhood,
+              isOnline: data.isOnline,
+              lastLocation: data.lastLocation,
+              city: data.city,
+              country: data.country,
+              neighborhood: data.neighborhood,
             };
           }
           return u;
@@ -70,37 +67,6 @@ export default function UserMap() {
       socket.off("user-device-location-updated");
       socket.disconnect();
     };
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      const decoded = jwtDecode(token);
-      const userId = decoded.userId;
-      if ("geolocation" in navigator) {
-        navigator.geolocation.watchPosition(
-          (position) => {
-            const { latitude, longitude, accuracy } = position.coords;
-
-            // ⚡ envoie au backend
-            fetch(`https://setrafuser.onrender.com/api/users/${userId}/location`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify({ latitude, longitude, accuracy }),
-            }).then(res => res.json()).then(data => console.log("Position sent", data)).catch(err => console.error(err));
-          },
-          (error) => {
-            console.error("Erreur GPS:", error);
-          },
-          { enableHighAccuracy: true }
-        );
-      } else {
-        console.warn("Géolocalisation non supportée");
-      }
-    }
   }, []);
 
   return (
