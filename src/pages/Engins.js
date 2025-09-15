@@ -23,7 +23,8 @@ const STORAGE_KEYS = {
   MAP_CENTER: 'usermap_map_center',
   MAP_ZOOM: 'usermap_map_zoom',
   GPS_PERMISSION: 'usermap_gps_permission',
-  LAST_POSITIONS: 'usermap_last_positions'
+  LAST_POSITIONS: 'usermap_last_positions',
+  DEVICE_ID: 'usermap_device_id'
 };
 
 // Utilitaires de persistence
@@ -373,6 +374,9 @@ const UserMap = () => {
   const [gpsPermission, setGpsPermission] = useState(() => 
     persistentStorage.get(STORAGE_KEYS.GPS_PERMISSION, 'prompt')
   );
+  const [deviceId, setDeviceId] = useState(() => 
+    persistentStorage.get(STORAGE_KEYS.DEVICE_ID)
+  );
   const [error, setError] = useState('');
   const [lastPositions, setLastPositions] = useState(() => 
     persistentStorage.get(STORAGE_KEYS.LAST_POSITIONS, {})
@@ -383,6 +387,15 @@ const UserMap = () => {
   const scrollPositionRef = useRef(0);
   const containerRef = useRef(null);
 
+  // Génération de l'ID appareil si inexistant
+  useEffect(() => {
+    if (!deviceId) {
+      const newDeviceId = window.crypto.randomUUID();
+      setDeviceId(newDeviceId);
+      persistentStorage.set(STORAGE_KEYS.DEVICE_ID, newDeviceId);
+    }
+  }, [deviceId]);
+
   // Fonction pour fetcher les utilisateurs avec jQuery
   const fetchUsers = useCallback(async () => {
     if (!token) {
@@ -391,7 +404,7 @@ const UserMap = () => {
 
     try {
       const response = await $.ajax({
-        url: 'https://setrafbackend.onrender.com/api/users',
+        url: 'https://setrafbackend.onrender.com/api/users/with-positions',
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -408,19 +421,24 @@ const UserMap = () => {
           u.isApproved
         )
         .map(u => {
-          const lastKnownPos = lastPositions[u._id];
-          const position = generateUserPosition(u._id, u.email, lastKnownPos);
-          
-          // S'assurer que lastUpdate est toujours un objet Date
-          position.lastUpdate = ensureDate(position.lastUpdate);
-          
-          // Générer les infos de l'appareil
-          const device = generateDeviceInfo(u._id, u.email);
-          
+          const devices = u.devices || [];
+          if (devices.length === 0) {
+            const genDevice = generateDeviceInfo(u._id, u.email);
+            const genPosition = generateUserPosition(u._id, u.email, lastPositions[u._id]);
+            genDevice.location = genPosition;
+            devices.push(genDevice);
+          } else {
+            devices.forEach((d, index) => {
+              if (!d.location) {
+                d.location = generateUserPosition(u._id, u.email + index, lastPositions[u._id]);
+              }
+              d.location.lastUpdate = ensureDate(d.location.lastUpdate);
+            });
+          }
+
           return {
             ...u,
-            position,
-            device,
+            devices,
             isCurrentUser: user && u._id === user._id
           };
         });
@@ -428,10 +446,8 @@ const UserMap = () => {
       // Sauvegarder les nouvelles positions avec dates sérialisées
       const newPositions = {};
       processedUsers.forEach(u => {
-        newPositions[u._id] = {
-          ...u.position,
-          lastUpdate: u.position.lastUpdate.toISOString() // Sérialiser en ISO string
-        };
+        newPositions[u._id] = u.devices[u.devices.length - 1]?.location || {}; // Dernier appareil
+        newPositions[u._id].lastUpdate = newPositions[u._id].lastUpdate?.toISOString();
       });
       setLastPositions(newPositions);
       persistentStorage.set(STORAGE_KEYS.LAST_POSITIONS, newPositions);
@@ -510,7 +526,7 @@ const UserMap = () => {
       maximumAge: 60000
     };
 
-    const onSuccess = (position) => {
+    const onSuccess = async (position) => {
       const newLocation = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
@@ -527,6 +543,30 @@ const UserMap = () => {
       if (!savedCenter || (savedCenter[0] === 48.8566 && savedCenter[1] === 2.3522)) {
         setMapCenter([newLocation.lat, newLocation.lng]);
         persistentStorage.set(STORAGE_KEYS.MAP_CENTER, [newLocation.lat, newLocation.lng]);
+      }
+
+      // Envoyer la position au serveur
+      try {
+        await $.ajax({
+          url: 'https://setrafbackend.onrender.com/api/users/update-location',
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          data: JSON.stringify({
+            userId: user._id,
+            lat: newLocation.lat,
+            lng: newLocation.lng,
+            accuracy: newLocation.accuracy,
+            deviceId,
+            deviceType: detectDeviceType(),
+            deviceName: `My ${detectDeviceType().charAt(0).toUpperCase() + detectDeviceType().slice(1)}`,
+            deviceOs: navigator.platform
+          })
+        });
+      } catch (err) {
+        console.error('Erreur mise à jour position serveur:', err);
       }
     };
 
@@ -556,14 +596,14 @@ const UserMap = () => {
 
     // Surveillance continue
     watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, options);
-  }, []);
+  }, [token, user, deviceId]);
 
   // Gestion des changements d'état avec persistence
   useEffect(() => {
     persistentStorage.set(STORAGE_KEYS.FILTER_ROLE, filterRole);
   }, [filterRole]);
 
-    useEffect(() => {
+  useEffect(() => {
     persistentStorage.set(STORAGE_KEYS.AUTO_REFRESH, autoRefresh);
   }, [autoRefresh]);
 
@@ -629,22 +669,23 @@ const UserMap = () => {
   );
 
   // Regroupement par appareil pour affichage sur la carte
-  const deviceGroups = filteredUsers.reduce((groups, user) => {
-    const deviceId = user.device?.id || user._id;
-    if (!groups[deviceId]) {
-      groups[deviceId] = {
-        device: user.device,
-        position: user.position,
-        users: [],
-        isCurrentUserDevice: false
-      };
-    }
-    groups[deviceId].users.push(user);
-    if (user.isCurrentUser) {
-      groups[deviceId].isCurrentUserDevice = true;
-    }
-    return groups;
-  }, {});
+  const deviceGroups = {};
+  filteredUsers.forEach(user => {
+    user.devices.forEach(device => {
+      const deviceId = device.id;
+      if (!deviceGroups[deviceId]) {
+        deviceGroups[deviceId] = {
+          device,
+          position: device.location,
+          users: [user],
+          isCurrentUserDevice: user.isCurrentUser
+        };
+      } else {
+        deviceGroups[deviceId].users.push(user);
+        if (user.isCurrentUser) deviceGroups[deviceId].isCurrentUserDevice = true;
+      }
+    });
+  });
 
   // Affichage de chargement initial seulement si pas de données en cache
   if (isLoading && allUsers.length === 0) {
@@ -869,7 +910,7 @@ const UserMap = () => {
                     Votre position réelle (GPS)
                   </h4>
                   <div className="location-details">
-                                       <p>
+                    <p>
                       <strong>Coordonnées:</strong><br/>
                       {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
                     </p>
@@ -998,84 +1039,80 @@ const UserMap = () => {
             )}
           </h3>
           <div className="users-grid">
-            {filteredUsers.map((userItem) => {
-              const sameDeviceUsers = filteredUsers.filter(u => u.device?.id === userItem.device?.id);
-              
-              return (
-                <div key={userItem._id} className={`user-card ${userItem.role} ${userItem.isCurrentUser ? 'current-user' : ''}`}>
-                  <div className="user-avatar">
-                    {userItem.profilePhoto ? (
-                      <img 
-                        src={`https://setrafbackend.onrender.com/${userItem.profilePhoto}`} 
-                        alt={`${userItem.firstName} ${userItem.lastName}`}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div className="avatar-placeholder" style={{display: userItem.profilePhoto ? 'none' : 'flex'}}>
-                      <i className="fas fa-user"></i>
+            {filteredUsers.map((userItem) => (
+              <div key={userItem._id} className={`user-card ${userItem.role} ${userItem.isCurrentUser ? 'current-user' : ''}`}>
+                <div className="user-avatar">
+                  {userItem.profilePhoto ? (
+                    <img 
+                      src={`https://setrafbackend.onrender.com/${userItem.profilePhoto}`} 
+                      alt={`${userItem.firstName} ${userItem.lastName}`}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className="avatar-placeholder" style={{display: userItem.profilePhoto ? 'none' : 'flex'}}>
+                    <i className="fas fa-user"></i>
+                  </div>
+                  <div className={`status-indicator ${userItem.role}`}></div>
+                  {userItem.isCurrentUser && (
+                    <div className="current-user-indicator">
+                      <i className="fas fa-user-check"></i>
                     </div>
-                    <div className={`status-indicator ${userItem.role}`}></div>
+                  )}
+                </div>
+                
+                <div className="user-info">
+                  <h4>
+                    {userItem.firstName} {userItem.lastName}
                     {userItem.isCurrentUser && (
-                      <div className="current-user-indicator">
-                        <i className="fas fa-user-check"></i>
-                      </div>
+                      <span className="you-badge">Vous</span>
                     )}
+                  </h4>
+                  <p className="user-email">{userItem.email}</p>
+                  <span className={`role-tag ${userItem.role}`}>
+                    {userItem.role === 'admin' ? 'Admin' : 
+                     userItem.role === 'manager' ? 'Manager' : 'Employé'}
+                  </span>
+                  
+                  {/* Informations des appareils */}
+                  <div className="devices-section">
+                    <h5>Appareils ({userItem.devices.length})</h5>
+                    <div className="devices-grid">
+                      {userItem.devices.map((device) => (
+                        <div key={device.id} className="device-info-card">
+                          <div className="device-header">
+                            <span className="device-emoji">{getDeviceEmoji(device.type)}</span>
+                            <span className="device-name">{device.name || 'Appareil inconnu'}</span>
+                          </div>
+                          <div className="device-details-small">
+                            <span className="device-type">{device.type || 'Inconnu'}</span>
+                            <span className="device-ip">IP: {device.ip || 'N/A'}</span>
+                            <span className="device-os">{device.os || 'N/A'}</span>
+                          </div>
+                          <p className="coordinates">
+                            <i className="fas fa-map-marker-alt"></i>
+                            {device.location?.lat.toFixed(4) || 'N/A'}, {device.location?.lng.toFixed(4) || 'N/A'}
+                          </p>
+                          <p className="last-update">
+                            <i className="fas fa-clock"></i>
+                            Position: {device.location ? formatTime(device.location.lastUpdate) : 'Pas de position'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   
-                  <div className="user-info">
-                    <h4>
-                      {userItem.firstName} {userItem.lastName}
-                      {userItem.isCurrentUser && (
-                        <span className="you-badge">Vous</span>
-                      )}
-                    </h4>
-                    <p className="user-email">{userItem.email}</p>
-                    <span className={`role-tag ${userItem.role}`}>
-                      {userItem.role === 'admin' ? 'Admin' : 
-                       userItem.role === 'manager' ? 'Manager' : 'Employé'}
-                    </span>
-                    
-                    {/* Informations de l'appareil */}
-                    <div className="device-info-card">
-                      <div className="device-header">
-                        <span className="device-emoji">{getDeviceEmoji(userItem.device?.type)}</span>
-                        <span className="device-name">{userItem.device?.name || 'Appareil inconnu'}</span>
-                      </div>
-                      <div className="device-details-small">
-                        <span className="device-type">{userItem.device?.type || 'Inconnu'}</span>
-                        <span className="device-ip">IP: {userItem.device?.ip || 'N/A'}</span>
-                        <span className="device-os">{userItem.device?.os || 'N/A'}</span>
-                      </div>
-                      {sameDeviceUsers.length > 1 && (
-                        <div className="shared-device-indicator">
-                          <i className="fas fa-users"></i>
-                          <span>{sameDeviceUsers.length} utilisateurs sur cet appareil</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <p className="coordinates">
-                      <i className="fas fa-map-marker-alt"></i>
-                      {userItem.position.lat.toFixed(4)}, {userItem.position.lng.toFixed(4)}
+                  {userItem.nip && (
+                    <p className="user-nip">
+                      <i className="fas fa-id-card"></i>
+                      NIP: {userItem.nip}
                     </p>
-                    <p className="last-update">
-                      <i className="fas fa-clock"></i>
-                      Position: {formatTime(userItem.position.lastUpdate)}
-                    </p>
-                    
-                    {userItem.nip && (
-                      <p className="user-nip">
-                        <i className="fas fa-id-card"></i>
-                        NIP: {userItem.nip}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1083,7 +1120,7 @@ const UserMap = () => {
       {/* Statistiques des appareils */}
       <div className="device-stats">
         <h3>Statistiques des appareils</h3>
-                <div className="device-stats-grid">
+        <div className="device-stats-grid">
           <div className="device-stat-card mobile">
             <div className="device-stat-icon">📱</div>
             <div className="device-stat-info">
